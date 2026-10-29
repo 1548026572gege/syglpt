@@ -17,12 +17,17 @@ try {
     Write-Log "git pull FAILED: $_"
 }
 
+# Stage all tracked/untracked files EXCEPT runtime log
+git add -A 2>&1 | Out-Null
+git reset HEAD -- sync.log 2>&1 | Out-Null   # don't commit the log itself
+
 $status = git status --porcelain 2>&1
 if ($status) {
     Write-Log "detected uncommitted changes, auto add + commit"
-    git add . 2>&1 | Out-Null
     $commitMsg = "auto-sync: save local changes $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
     git commit -m $commitMsg 2>&1 | ForEach-Object { Write-Log "commit: $_" }
+} else {
+    Write-Log "no local changes to commit"
 }
 
 try {

@@ -5,14 +5,36 @@ MySQL 示例：
     set DATABASE_URL=mysql+pymysql://root:password@localhost:3306/bio_lab?charset=utf8mb4
 """
 import os
+import secrets
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
+def _load_or_create_secret():
+    """JWT 签名密钥：优先环境变量；否则首次启动随机生成并保存到本地 secret.key（不入版本库）"""
+    if os.environ.get("SECRET_KEY"):
+        return os.environ["SECRET_KEY"]
+    path = os.path.join(BASE_DIR, "secret.key")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            key = f.read().strip()
+        if key:
+            return key
+    except OSError:
+        pass
+    key = secrets.token_hex(32)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(key)
+    return key
+
+
+_SECRET = _load_or_create_secret()
+
+
 class Config:
-    SECRET_KEY = os.environ.get("SECRET_KEY", "bio-lab-secret-key-please-change")
+    SECRET_KEY = _SECRET
     # JWT 配置
-    JWT_SECRET = os.environ.get("JWT_SECRET", SECRET_KEY)
+    JWT_SECRET = os.environ.get("JWT_SECRET", _SECRET)
     JWT_EXPIRE_HOURS = int(os.environ.get("JWT_EXPIRE_HOURS", "12"))
     # 数据库：默认 SQLite，局域网部署时可切换 MySQL 5.7+
     SQLALCHEMY_DATABASE_URI = os.environ.get(

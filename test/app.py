@@ -63,15 +63,26 @@ def create_app():
 
 
 def seed_data():
-    """首次启动创建初始账号与示例数据"""
+    """首次启动创建初始账号与示例数据。初始密码优先读环境变量，否则随机生成并仅在控制台打印一次"""
     if User.query.count() > 0:
         return
-    admin = User(username="admin", password_hash=hash_password("admin123"),
+    import secrets
+
+    def _init_password(env_key):
+        pwd = os.environ.get(env_key)
+        return (pwd, False) if pwd else (secrets.token_urlsafe(8), True)
+
+    admin_pwd, admin_gen = _init_password("ADMIN_INIT_PASSWORD")
+    teacher_pwd, teacher_gen = _init_password("TEACHER_INIT_PASSWORD")
+    admin = User(username="admin", password_hash=hash_password(admin_pwd),
                  role="admin", name="系统管理员", phone="13800000001")
-    teacher = User(username="teacher", password_hash=hash_password("teacher123"),
+    teacher = User(username="teacher", password_hash=hash_password(teacher_pwd),
                    role="teacher", name="张老师", phone="13800000002", classes="高一(1)班,高一(2)班")
     db.session.add_all([admin, teacher])
     db.session.commit()
+    print("[初始化] 已创建初始账号（首次显示，请妥善保存并尽快修改密码）：")
+    print(f"  管理员 admin / {admin_pwd}" + ("  [随机生成]" if admin_gen else "  [来自环境变量]"))
+    print(f"  教师     teacher / {teacher_pwd}" + ("  [随机生成]" if teacher_gen else "  [来自环境变量]"))
 
     from models import Instrument, Notice
     samples = [

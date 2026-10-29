@@ -1,0 +1,29 @@
+<view class="card" style="background:linear-gradient(135deg,#0b3d2e,#0e9f6e);color:#fff;">
+  <view style="font-size:36rpx;font-weight:bold;">{{user.name}}，您好</view>
+  <view style="margin-top:10rpx;opacity:.85;font-size:26rpx;">任教班级：{{user.classes || '未设置'}}</view>
+</view>
+
+<view class="card">
+  <view class="row" style="justify-content:space-around;text-align:center;">
+    <view><view style="font-size:40rpx;font-weight:bold;color:#0e9f6e;">{{overview.instrument_total || 0}}</view><view class="muted">仪器种类</view></view>
+    <view><view style="font-size:40rpx;font-weight:bold;color:#d97706;">{{overview.reservation_pending || 0}}</view><view class="muted">待审核预约</view></view>
+    <view><view style="font-size:40rpx;font-weight:bold;color:#2563eb;">{{overview.borrow_active || 0}}</view><view class="muted">当前借出</view></view>
+  </view>
+</view>
+
+<view class="card">
+  <view class="row" style="padding:16rpx 0;border-bottom:1rpx solid #f3f4f6;" data-page="instruments" bindtap="go">
+    <text>🔬 仪器台账查询</text><text class="muted">›</text>
+  </view>
+  <view class="row" style="padding:16rpx 0;border-bottom:1rpx solid #f3f4f6;" data-page="reservations" bindtap="go">
+    <text>📅 实验预约</text><text class="muted">›</text>
+  </view>
+  <view class="row" style="padding:16rpx 0;border-bottom:1rpx solid #f3f4f6;" data-page="borrows" bindtap="go">
+    <text>📦 仪器借用申请</text><text class="muted">›</text>
+  </view>
+  <view class="row" style="padding:16rpx 0;" data-page="notices" bindtap="go">
+    <text>📢 实验通知单</text><text class="muted">›</text>
+  </view>
+</view>
+
+<button class="btn-plain" style="margin:20rpx;" bindtap="onLogout">退出登录</button>

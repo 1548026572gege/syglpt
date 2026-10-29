@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block page_title %}仪器配备目录{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <select id="f-subject" style="min-width:130px" onchange="loadList()">
+      <option value="">全部学科</option>
+    </select>
+    <input type="text" id="kw" placeholder="搜索器材名称/编码" style="width:200px">
+    <button class="btn btn-outline" onclick="loadList()">🔍 搜索</button>
+    <div class="spacer"></div>
+    <span id="admin-btns" style="display:none">
+      <button class="btn btn-outline" onclick="openImport()">⬆ 导入配备目录 Excel</button>
+      <button class="btn btn-danger" onclick="delVisible()">🗑 清空当前筛选结果</button>
+    </span>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let list = [];
+
+  async function onPageReady() {
+    if (isAdmin()) document.getElementById("admin-btns").style.display = "";
+    document.getElementById("kw").addEventListener("keydown", e => { if (e.key === "Enter") loadList(); });
+    await loadList();
+  }
+
+  const trunc = (s, n = 30) => { s = s || ""; return s.length > n ? s.slice(0, n) + "…" : s; };
+
+  async function loadList() {
+    const params = new URLSearchParams({
+      subject: document.getElementById("f-subject").value,
+      kw: document.getElementById("kw").value,
+    });
+    const data = await api("/api/catalog?" + params);
+    list = data.list;
+    const sel = document.getElementById("f-subject");
+    const cur = sel.value;
+    sel.innerHTML = `<option value="">全部学科</option>` +
+      data.subjects.map(s => `<option ${s === cur ? "selected" : ""}>${esc(s)}</option>`).join("");
+    const cols = [
+      { title: "学科", render: r => esc(r.subject || "-") },
+      { title: "器材类型/学习主题", render: r => esc(trunc(r.category, 18) || "-") },
+      { title: "分类代码", render: r => esc(r.code || r.old_code || "-") },
+      { title: "器材名称", render: r => `<b>${esc(r.name)}</b>` },
+      { title: "规格 / 性能要求", render: r => `<span title="${esc(r.spec || "")}">${esc(trunc(r.spec, 40)) || "-"}</span>` },
+      { title: "单位", render: r => esc(r.unit || "-") },
+      { title: "配备数量", render: r => r.quantity ?? "-" },
+      { title: "单价", render: r => r.price ? "¥" + Number(r.price).toFixed(2) : "-" },
+      { title: "配备要求", render: r => r.requirement === "必配"
+        ? `<span class="badge badge-success">必配</span>`
+        : r.requirement === "选配" ? `<span class="badge badge-warning">选配</span>` : "-" },
+      { title: "备注", render: r => esc(trunc(r.remark, 20) || "-") },
+    ];
+    if (isAdmin()) cols.push({ title: "操作", render: r =>
+      `<button class="btn btn-danger btn-sm" onclick="del(${r.id},'${esc(r.name)}')">删除</button>` });
+    renderTable("list-box", cols, list);
+    const box = document.getElementById("list-box");
+    const info = box.querySelector(".table-info");
+    if (!info && list.length) {
+      box.insertAdjacentHTML("afterbegin",
+        `<div class="table-info" style="color:var(--text-muted);font-size:13px;margin-bottom:8px">共 ${list.length} 条配备标准</div>`);
+    } else if (info) info.textContent = `共 ${list.length} 条配备标准`;
+  }
+
+  function openImport() {
+    openModal("导入配备目录", `
+      <p style="margin-bottom:10px;color:var(--text-muted)">上传《仪器配备目录》Excel。支持标准模板，也支持原版配备目录（多学科工作表，工作表名作学科名）。系统按表头列名自动识别。</p>
+    <p style="margin-bottom:12px"><a href="javascript:downloadFile('/api/catalog/import-template')" style="color:var(--primary)">⬇ 下载导入模板</a></p>
+      <input type="file" id="cat-file" accept=".xlsx,.xlsm">
+    `, { onOk: async () => {
+      const f = document.getElementById("cat-file").files[0];
+      if (!f) { toast("请选择文件", "error"); return; }
+      const fd = new FormData(); fd.append("file", f);
+      const resp = await fetch("/api/catalog/import", { method: "POST",
+        headers: { "Authorization": "Bearer " + getToken() }, body: fd });
+      const data = await resp.json();
+      if (data.code !== 0) { toast(data.msg || "导入失败", "error"); return; }
+      closeModal();
+      const d = (data.data.details || []).map(x => `<li>${esc(x)}</li>`).join("");
+      openModal("导入结果", `<p>${esc(data.msg)}</p><ul style="margin-top:10px;font-size:13px;color:var(--text-muted)">${d}</ul>`,
+        { hideFooter: true });
+      loadList();
+    }});
+  }
+
+  async function del(id, name) {
+    openModal("确认删除", `<p>确定删除配备目录记录「${esc(name)}」吗？</p>`, { onOk: async () => {
+      await api(`/api/catalog/${id}`, { method: "DELETE" });
+      toast("删除成功"); closeModal(); loadList();
+    }});
+  }
+
+  function delVisible() {
+    if (!list.length) { toast("当前无数据", "error"); return; }
+    const ids = list.map(x => x.id);
+    openModal("确认清空", `<p>确定删除当前筛选结果中的 <b>${ids.length}</b> 条配备记录吗？</p>`,
+      { onOk: async () => {
+        const r = await api("/api/catalog/batch-delete", { method: "POST", body: { ids } });
+        toast(r.msg || "删除成功"); closeModal(); loadList();
+      }});
+  }
+</script>
+{% endblock %}

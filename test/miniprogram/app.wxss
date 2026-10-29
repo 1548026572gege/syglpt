@@ -1,0 +1,15 @@
+page { background: #f4f6f8; font-size: 28rpx; color: #1f2937; }
+.card { background: #fff; border-radius: 16rpx; padding: 24rpx; margin: 20rpx; box-shadow: 0 2rpx 8rpx rgba(0,0,0,.06); }
+.btn-primary { background: #0e9f6e; color: #fff; border-radius: 12rpx; font-size: 30rpx; }
+.btn-plain { color: #0e9f6e; border: 1rpx solid #0e9f6e; background: #fff; border-radius: 12rpx; font-size: 26rpx; }
+.badge { display: inline-block; padding: 4rpx 16rpx; border-radius: 30rpx; font-size: 22rpx; background: #e5e7eb; color: #374151; }
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-blue { background: #dbeafe; color: #1e40af; }
+.muted { color: #6b7280; font-size: 24rpx; }
+.row { display: flex; align-items: center; justify-content: space-between; }
+.empty { text-align: center; color: #9ca3af; padding: 80rpx 0; }
+.field { margin-bottom: 20rpx; }
+.field .label { font-size: 26rpx; color: #6b7280; margin-bottom: 10rpx; display: block; }
+.field input, .field textarea, .field picker .picker-val { background: #f9fafb; border: 1rpx solid #e5e7eb; border-radius: 10rpx; padding: 16rpx 20rpx; width: 100%; box-sizing: border-box; }

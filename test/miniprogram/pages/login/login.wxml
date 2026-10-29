@@ -1,0 +1,17 @@
+<view style="padding: 80rpx 40rpx;">
+  <view style="text-align:center;margin-bottom:60rpx;">
+    <view style="font-size:44rpx;font-weight:bold;">🧬 生物实验室平台</view>
+    <view class="muted" style="margin-top:12rpx;">教师端 · 微信小程序</view>
+  </view>
+  <view class="card">
+    <view class="field">
+      <text class="label">账号</text>
+      <input data-k="username" bindinput="onInput" placeholder="请输入账号" value="{{username}}" />
+    </view>
+    <view class="field">
+      <text class="label">密码</text>
+      <input data-k="password" bindinput="onInput" password placeholder="请输入密码" value="{{password}}" />
+    </view>
+    <button class="btn-primary" bindtap="onLogin" loading="{{loading}}">登 录</button>
+  </view>
+</view>

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block page_title %}实验预约管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <select id="f-status">
+      <option value="">全部状态</option>
+      <option>待审核</option><option>已通过</option><option>已驳回</option><option>已完成</option><option>已取消</option>
+    </select>
+    <button class="btn btn-outline" onclick="loadList()">查询</button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" onclick="openEdit()">＋ 提交实验预约</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function onPageReady() { await loadList(); }
+
+async function loadList() {
+  const status = document.getElementById("f-status").value;
+  const list = await api("/api/reservations" + (status ? "?status=" + encodeURIComponent(status) : ""));
+  const cols = [
+    { title: "实验名称", key: "experiment_name" },
+    { title: "实验室", key: "lab_name" },
+    { title: "预约教师", key: "teacher_name" },
+    { title: "班级", key: "class_name", render: r => esc(r.class_name || "-") },
+    { title: "人数/分组", render: r => `${r.student_count ?? "-"}人 / ${r.group_count ?? "-"}组` },
+    { title: "开始时间", key: "start_time" },
+    { title: "结束时间", key: "end_time" },
+    { title: "状态", render: r => badge(r.status) + (r.review_comment ? `<div style="font-size:12px;color:var(--text-muted);margin-top:3px">${esc(r.review_comment)}</div>` : "") },
+    { title: "操作", render: r => opBtns(r) },
+  ];
+  renderTable("list-box", cols, list);
+}
+
+function opBtns(r) {
+  const btns = [];
+  const ended = ["已完成", "已取消"].includes(r.status);
+  const editable = (isAdmin() && !ended) || (!isAdmin() && ["待审核", "已驳回"].includes(r.status));
+  if (isAdmin() && r.status === "待审核") {
+    btns.push(`<button class="btn btn-primary btn-sm" onclick="review(${r.id},'approve')">通过</button>`);
+    btns.push(`<button class="btn btn-outline btn-sm" onclick='openAdjust(${JSON.stringify(r)})'>调整时间</button>`);
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="review(${r.id},'reject')">驳回</button>`);
+  }
+  if (isAdmin() && r.status === "已通过") {
+    btns.push(`<button class="btn btn-primary btn-sm" onclick="complete(${r.id})">标记完成</button>`);
+  }
+  if (!isAdmin() && ["待审核", "已通过"].includes(r.status)) {
+    btns.push(`<button class="btn btn-outline btn-sm" onclick="cancel(${r.id})">取消预约</button>`);
+  }
+  if (editable) {
+    btns.push(`<button class="btn btn-outline btn-sm" onclick='openEdit(${JSON.stringify(r)})'>编辑</button>`);
+  }
+  if (isAdmin() || (!isAdmin() && ["待审核", "已驳回"].includes(r.status))) {
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="del(${r.id},'${esc(r.experiment_name)}')">删除</button>`);
+  }
+  return btns.join(" ") || "-";
+}
+
+function openEdit(item) {
+  const isEdit = !!item;
+  const r = item || {};
+  const u = getUser();
+  const labOpts = ["生物实验室A", "生物实验室B", "生物准备室"]
+    .map(l => `<option ${r.lab_name === l ? "selected" : ""}>${l}</option>`).join("");
+  openModal(isEdit ? "编辑实验预约" : "提交实验预约", `
+    <div class="form-group"><label>实验名称 <span class="req">*</span></label><input type="text" id="rv-name" value="${esc(r.experiment_name || "")}" placeholder="如：观察植物细胞的质壁分离"></div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>实验室 <span class="req">*</span></label>
+        <select id="rv-lab">${labOpts}</select></div>
+      <div class="form-group" style="flex:1"><label>参与班级</label><input type="text" id="rv-class" value="${esc(r.class_name || (u.classes || "").split(",")[0] || "")}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>开始时间 <span class="req">*</span></label><input type="datetime-local" id="rv-start" value="${(r.start_time || "").replace(" ", "T")}"></div>
+      <div class="form-group" style="flex:1"><label>结束时间 <span class="req">*</span></label><input type="datetime-local" id="rv-end" value="${(r.end_time || "").replace(" ", "T")}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>学生人数</label><input type="number" id="rv-students" min="1" value="${r.student_count ?? 50}"></div>
+      <div class="form-group" style="flex:1"><label>分组数</label><input type="number" id="rv-groups" min="1" value="${r.group_count ?? 12}"></div>
+    </div>
+    <div class="form-group"><label>备注（所需仪器、材料等）</label><textarea id="rv-remark">${esc(r.remark || "")}</textarea></div>
+  `, { onOk: async () => {
+    const body = {
+      experiment_name: formVal("rv-name"), lab_name: formVal("rv-lab"), class_name: formVal("rv-class"),
+      start_time: formVal("rv-start"), end_time: formVal("rv-end"),
+      student_count: Number(formVal("rv-students")) || null, group_count: Number(formVal("rv-groups")) || null,
+      remark: formVal("rv-remark"),
+    };
+    if (isEdit) await api(`/api/reservations/${r.id}`, { method: "PUT", body });
+    else await api("/api/reservations", { method: "POST", body });
+    toast(isEdit ? "保存成功" : "预约已提交"); closeModal(); loadList();
+  }});
+}
+
+function del(id, name) {
+  openModal("确认删除", `<p>确定删除预约「${esc(name)}」吗？该操作将记录日志。</p>`, { onOk: async () => {
+    await api(`/api/reservations/${id}`, { method: "DELETE" });
+    toast("删除成功"); closeModal(); loadList();
+  }});
+}
+
+function review(id, action) {
+  const title = action === "approve" ? "通过预约" : "驳回预约";
+  openModal(title, `
+    <div class="form-group"><label>审核意见（可选）</label><textarea id="rev-comment"></textarea></div>
+  `, { onOk: async () => {
+    await api(`/api/reservations/${id}/review`, { method: "PUT", body: { action, comment: formVal("rev-comment") } });
+    toast("审核完成"); closeModal(); loadList();
+  }});
+}
+
+function openAdjust(r) {
+  openModal("调整预约时间", `
+    <p style="margin-bottom:12px;color:var(--text-muted)">「${esc(r.experiment_name)}」原时段：${esc(r.start_time)} ~ ${esc(r.end_time)}</p>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>新开始时间</label><input type="datetime-local" id="adj-start"></div>
+      <div class="form-group" style="flex:1"><label>新结束时间</label><input type="datetime-local" id="adj-end"></div>
+    </div>
+    <div class="form-group"><label>调整说明</label><textarea id="adj-comment"></textarea></div>
+  `, { onOk: async () => {
+    await api(`/api/reservations/${r.id}/review`, { method: "PUT", body: {
+      action: "adjust", start_time: formVal("adj-start"), end_time: formVal("adj-end"), comment: formVal("adj-comment") } });
+    toast("已调整并通过"); closeModal(); loadList();
+  }});
+}
+
+async function complete(id) {
+  await api(`/api/reservations/${id}/complete`, { method: "PUT" });
+  toast("已标记完成"); loadList();
+}
+
+function cancel(id) {
+  openModal("取消预约", `<p>确定取消该预约吗？</p>`, { onOk: async () => {
+    await api(`/api/reservations/${id}/cancel`, { method: "PUT" });
+    toast("已取消"); closeModal(); loadList();
+  }});
+}
+</script>
+{% endblock %}

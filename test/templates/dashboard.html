@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block page_title %}工作台{% endblock %}
+{% block content %}
+<div class="stat-grid" id="stat-grid"></div>
+
+<div class="card">
+  <div class="card-title">
+    <div class="cal-head">
+      <button class="btn btn-outline btn-sm" onclick="changeMonth(-1)">‹ 上月</button>
+      <h3 id="cal-title"></h3>
+      <button class="btn btn-outline btn-sm" onclick="changeMonth(1)">下月 ›</button>
+    </div>
+    <span style="font-weight:400;color:var(--text-muted);font-size:13px">已通过审核的实验预约日历</span>
+  </div>
+  <div id="calendar-box"></div>
+</div>
+
+<div class="card">
+  <div class="card-title">最新实验通知单</div>
+  <div id="notice-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let calMonth = new Date();
+const STAT_DEFS = [
+  { key: "instrument_total", label: "仪器种类", cls: "" },
+  { key: "instrument_qty", label: "仪器总数量", cls: "" },
+  { key: "reservation_pending", label: "待审核预约", cls: "warn" },
+  { key: "borrow_active", label: "当前借出", cls: "info" },
+  { key: "repair_active", label: "维修中", cls: "danger" },
+  { key: "purchase_pending", label: "待审批采购", cls: "warn" },
+  { key: "report_total", label: "实验报告数", cls: "info" },
+  { key: "loss_total", label: "累计损耗数量", cls: "danger" },
+];
+
+async function onPageReady() {
+  const data = await api("/api/stats/overview");
+  document.getElementById("stat-grid").innerHTML = STAT_DEFS.map(d => `
+    <div class="stat-card ${d.cls}">
+      <div class="stat-label">${d.label}</div>
+      <div class="stat-value">${data[d.key] ?? 0}</div>
+    </div>`).join("");
+  await renderCalendar();
+  const notices = await api("/api/notices");
+  document.getElementById("notice-box").innerHTML = notices.length ? notices.slice(0, 3).map(n => `
+    <div class="card notice-card" style="margin-bottom:12px">
+      <strong>${esc(n.title)}</strong>
+      <div class="notice-meta">
+        ${n.experiment_time ? `<span>🕐 ${esc(n.experiment_time)}</span>` : ""}
+        ${n.lab_name ? `<span>📍 ${esc(n.lab_name)}</span>` : ""}
+        ${n.instruments ? `<span>🔬 ${esc(n.instruments)}</span>` : ""}
+        <span>发布：${esc(n.sender_name)} · ${esc(n.created_at)}</span>
+      </div>
+      <div class="notice-content">${esc(n.content || "")}</div>
+    </div>`).join("") : `<div class="empty-tip">暂无通知</div>`;
+}
+
+function changeMonth(delta) {
+  calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + delta, 1);
+  renderCalendar();
+}
+
+async function renderCalendar() {
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  document.getElementById("cal-title").textContent = `${y} 年 ${m + 1} 月`;
+  const events = await api(`/api/reservations/calendar?month=${y}-${String(m + 1).padStart(2, "0")}`);
+  const byDate = {};
+  events.forEach(e => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+
+  const first = new Date(y, m, 1);
+  const startDay = first.getDay();
+  const days = new Date(y, m + 1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let html = `<table class="calendar"><thead><tr>${["日","一","二","三","四","五","六"].map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody><tr>`;
+  for (let i = 0; i < startDay; i++) html += `<td style="background:#fafafa"></td>`;
+  for (let d = 1; d <= days; d++) {
+    const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const isToday = dateStr === todayStr;
+    html += `<td class="${isToday ? "today" : ""}"><div class="day-num">${d}</div>` +
+      (byDate[dateStr] || []).map(e =>
+        `<div class="cal-event" title="${esc(e.title)} ${e.start}-${e.end}（${esc(e.teacher)}）">${e.start} ${esc(e.title)}</div>`).join("") + "</td>";
+    if ((startDay + d) % 7 === 0 && d < days) html += "</tr><tr>";
+  }
+  const used = startDay + days;
+  for (let i = used % 7; i < 7 && i > 0; i++) html += `<td style="background:#fafafa"></td>`;
+  html += "</tr></tbody></table>";
+  document.getElementById("calendar-box").innerHTML = html;
+}
+</script>
+{% endblock %}

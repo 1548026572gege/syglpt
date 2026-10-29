@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block page_title %}仪器维修管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <select id="f-status">
+      <option value="">全部状态</option>
+      <option>报修中</option><option>维修中</option><option>已完成</option><option>报废</option>
+    </select>
+    <button class="btn btn-outline" onclick="loadList()">查询</button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" onclick="openReport()">＋ 故障上报</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let instruments = [];
+
+async function onPageReady() {
+  const data = await api("/api/instruments");
+  instruments = data.list.filter(i => i.status !== "报废");
+  await loadList();
+}
+
+async function loadList() {
+  const status = document.getElementById("f-status").value;
+  const list = await api("/api/repairs" + (status ? "?status=" + encodeURIComponent(status) : ""));
+  const cols = [
+    { title: "仪器", render: r => `${esc(r.instrument_name)}<div style="font-size:12px;color:var(--text-muted)">${esc(r.instrument_code)}</div>` },
+    { title: "故障描述", key: "fault_desc", render: r => esc(r.fault_desc) },
+    { title: "上报人", key: "reporter_name" },
+    { title: "上报时间", key: "report_time" },
+    { title: "维修时间", render: r => r.repair_time || "-" },
+    { title: "维修结果", render: r => esc(r.repair_result || "-") },
+    { title: "费用(元)", render: r => r.cost ?? "-" },
+    { title: "状态", render: r => badge(r.status) },
+    { title: "操作", render: r => isAdmin() && !["已完成", "报废"].includes(r.status)
+        ? `<button class="btn btn-outline btn-sm" onclick='openUpdate(${JSON.stringify(r)})'>维修登记</button>` : "-" },
+  ];
+  renderTable("list-box", cols, list);
+}
+
+function openReport() {
+  openModal("故障上报", `
+    <div class="form-group"><label>故障仪器 <span class="req">*</span></label>
+      <select id="rp-ins">${instruments.map(i => `<option value="${i.id}">${esc(i.name)}（${esc(i.code)}，当前：${esc(i.status)}）</option>`).join("")}</select></div>
+    <div class="form-group"><label>故障描述 <span class="req">*</span></label>
+      <textarea id="rp-desc" placeholder="请描述故障现象"></textarea></div>
+  `, { onOk: async () => {
+    await api("/api/repairs", { method: "POST", body: { instrument_id: Number(formVal("rp-ins")), fault_desc: formVal("rp-desc") } });
+    toast("故障已上报"); closeModal(); loadList();
+  }});
+}
+
+function openUpdate(r) {
+  openModal("维修登记", `
+    <p style="margin-bottom:12px;color:var(--text-muted)">${esc(r.instrument_name)}（${esc(r.instrument_code)}）：${esc(r.fault_desc)}</p>
+    <div class="form-group"><label>维修状态</label>
+      <select id="ru-status">${["维修中", "已完成", "报废"].map(s => `<option ${r.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+    <div class="form-group"><label>维修结果</label><textarea id="ru-result" placeholder="如：更换物镜后恢复正常">${esc(r.repair_result || "")}</textarea></div>
+    <div class="form-group"><label>维修费用（元）</label><input type="number" id="ru-cost" min="0" step="0.01" value="${r.cost || 0}"></div>
+  `, { onOk: async () => {
+    await api(`/api/repairs/${r.id}`, { method: "PUT", body: {
+      status: formVal("ru-status"), repair_result: formVal("ru-result"), cost: Number(formVal("ru-cost")) || 0 } });
+    toast("保存成功"); closeModal(); loadList();
+  }});
+}
+</script>
+{% endblock %}

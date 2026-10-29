@@ -1,0 +1,36 @@
+<button class="btn-primary" style="margin:20rpx;" bindtap="toggleForm">{{showForm ? '收起表单' : '＋ 提交实验预约'}}</button>
+
+<view class="card" wx:if="{{showForm}}">
+  <view class="field"><text class="label">实验名称 *</text>
+    <input data-k="experiment_name" bindinput="onInput" value="{{form.experiment_name}}" placeholder="如：观察植物细胞的质壁分离" /></view>
+  <view class="field"><text class="label">实验室</text>
+    <picker range="{{labs}}" value="{{form.lab_index}}" bindchange="onLabChange">
+      <view class="picker-val">{{labs[form.lab_index]}}</view></picker></view>
+  <view class="field"><text class="label">参与班级</text>
+    <input data-k="class_name" bindinput="onInput" value="{{form.class_name}}" /></view>
+  <view class="field"><text class="label">学生人数 / 分组数</text>
+    <view style="display:flex;gap:16rpx;">
+      <input data-k="student_count" type="number" bindinput="onInput" value="{{form.student_count}}" style="flex:1;" />
+      <input data-k="group_count" type="number" bindinput="onInput" value="{{form.group_count}}" style="flex:1;" />
+    </view></view>
+  <view class="field"><text class="label">开始时间 *</text>
+    <input data-k="start_time" bindinput="onInput" value="{{form.start_time}}" placeholder="格式：2026-10-20 08:00" /></view>
+  <view class="field"><text class="label">结束时间 *</text>
+    <input data-k="end_time" bindinput="onInput" value="{{form.end_time}}" placeholder="格式：2026-10-20 09:30" /></view>
+  <view class="field"><text class="label">备注（所需仪器材料）</text>
+    <textarea data-k="remark" bindinput="onInput" value="{{form.remark}}" /></view>
+  <button class="btn-primary" bindtap="onSubmit">提交预约</button>
+</view>
+
+<view wx:if="{{!list.length}}" class="empty">暂无预约记录</view>
+<view class="card" wx:for="{{list}}" wx:key="id">
+  <view class="row">
+    <text style="font-weight:bold;">{{item.experiment_name}}</text>
+    <text class="badge {{item.badge}}">{{item.status}}</text>
+  </view>
+  <view class="muted" style="margin-top:10rpx;">{{item.lab_name}} ｜ {{item.start_time}} ~ {{item.end_time}}</view>
+  <view class="muted" style="margin-top:6rpx;">{{item.class_name || '-'}} ｜ {{item.student_count || '-'}}人 / {{item.group_count || '-'}}组</view>
+  <view class="muted" wx:if="{{item.review_comment}}" style="margin-top:6rpx;">审核意见：{{item.review_comment}}</view>
+  <button wx:if="{{item.status === '待审核' || item.status === '已通过'}}" class="btn-plain" size="mini"
+    style="margin-top:14rpx;" data-id="{{item.id}}" bindtap="onCancel">取消预约</button>
+</view>

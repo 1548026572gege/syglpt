@@ -1,0 +1,9 @@
+flask>=3.0
+flask-sqlalchemy>=3.1
+pyjwt>=2.8
+bcrypt>=4.1
+openpyxl>=3.1
+# 部署 MySQL 时取消注释：
+# pymysql>=1.1
+# 生产部署（Linux）可选：
+# gunicorn>=21.2

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block page_title %}账号管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <input type="text" id="kw" placeholder="搜索账号/姓名" style="width:200px">
+    <button class="btn btn-outline" onclick="loadList()">查询</button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" onclick="openEdit()">＋ 新增账号</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ROLE_NAME 已在 base.html 全局定义，此处不可重复声明（const 重复声明会使整个脚本块失效）
+async function onPageReady() {
+  document.getElementById("kw").addEventListener("keydown", e => { if (e.key === "Enter") loadList(); });
+  await loadList();
+}
+
+async function loadList() {
+  const kw = document.getElementById("kw").value;
+  const list = await api("/api/users" + (kw ? "?kw=" + encodeURIComponent(kw) : ""));
+  const cols = [
+    { title: "账号", key: "username" },
+    { title: "姓名", key: "name" },
+    { title: "角色", render: r => `<span class="badge badge-${r.role === "teacher" ? "blue" : "green"}">${ROLE_NAME[r.role] || r.role}</span>` },
+    { title: "联系电话", render: r => esc(r.phone || "-") },
+    { title: "任教班级", render: r => esc(r.classes || "-") },
+    { title: "创建时间", key: "created_at" },
+    { title: "操作", render: r => `
+      <button class="btn btn-outline btn-sm" onclick='openEdit(${JSON.stringify(r)})'>编辑</button>
+      <button class="btn btn-danger btn-sm" onclick="del(${r.id},'${esc(r.username)}')">删除</button>` },
+  ];
+  renderTable("list-box", cols, list);
+}
+
+function openEdit(item) {
+  const u = item || {};
+  openModal(item ? "编辑账号" : "新增账号", `
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>账号 <span class="req">*</span></label>
+        <input type="text" id="us-username" value="${esc(u.username || "")}" ${item ? "disabled" : ""}></div>
+      <div class="form-group" style="flex:1"><label>姓名 <span class="req">*</span></label>
+        <input type="text" id="us-name" value="${esc(u.name || "")}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>角色</label>
+        <select id="us-role">
+          <option value="teacher" ${u.role === "teacher" ? "selected" : ""}>生物教师</option>
+          <option value="admin" ${u.role === "admin" ? "selected" : ""}>实验管理员</option>
+          <option value="sysadmin" ${u.role === "sysadmin" ? "selected" : ""}>系统管理员</option>
+        </select></div>
+      <div class="form-group" style="flex:1"><label>联系电话</label><input type="text" id="us-phone" value="${esc(u.phone || "")}"></div>
+    </div>
+    <div class="form-group"><label>任教班级（教师，逗号分隔）</label><input type="text" id="us-classes" value="${esc(u.classes || "")}"></div>
+    <div class="form-group"><label>${item ? "重置密码（留空不修改）" : "初始密码 *"}</label>
+      <input type="password" id="us-password" placeholder="${item ? "留空则保持原密码" : "至少6位"}"></div>
+  `, { onOk: async () => {
+    const body = { name: formVal("us-name"), role: formVal("us-role"), phone: formVal("us-phone"),
+      classes: formVal("us-classes"), password: formVal("us-password") };
+    if (item) {
+      await api(`/api/users/${item.id}`, { method: "PUT", body });
+    } else {
+      body.username = formVal("us-username");
+      if (!body.username || !body.password) { toast("账号和密码不能为空", "error"); return; }
+      await api("/api/users", { method: "POST", body });
+    }
+    toast("保存成功"); closeModal(); loadList();
+  }});
+}
+
+function del(id, username) {
+  openModal("确认删除", `<p>确定删除账号「${esc(username)}」吗？</p>`, { onOk: async () => {
+    await api(`/api/users/${id}`, { method: "DELETE" });
+    toast("删除成功"); closeModal(); loadList();
+  }});
+}
+</script>
+{% endblock %}

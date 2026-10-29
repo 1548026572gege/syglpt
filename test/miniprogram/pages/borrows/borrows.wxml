@@ -1,0 +1,27 @@
+<button class="btn-primary" style="margin:20rpx;" bindtap="toggleForm">{{showForm ? '收起表单' : '＋ 申请借用'}}</button>
+
+<view class="card" wx:if="{{showForm}}">
+  <view class="field"><text class="label">选择仪器 *</text>
+    <picker range="{{instruments}}" range-key="name" value="{{insIndex}}" bindchange="onInsChange">
+      <view class="picker-val">{{instruments[insIndex].name || '请选择'}}（库存 {{instruments[insIndex].quantity || 0}}）</view></picker></view>
+  <view class="field"><text class="label">借用数量 *</text>
+    <input data-k="quantity" type="number" bindinput="onInput" value="{{form.quantity}}" /></view>
+  <view class="field"><text class="label">预计归还时间</text>
+    <input data-k="expect_return_time" bindinput="onInput" value="{{form.expect_return_time}}" placeholder="格式：2026-10-25 17:00" /></view>
+  <view class="field"><text class="label">用途说明</text>
+    <textarea data-k="purpose" bindinput="onInput" value="{{form.purpose}}" /></view>
+  <button class="btn-primary" bindtap="onSubmit">提交申请</button>
+</view>
+
+<view wx:if="{{!list.length}}" class="empty">暂无借用记录</view>
+<view class="card" wx:for="{{list}}" wx:key="id">
+  <view class="row">
+    <text style="font-weight:bold;">{{item.instrument_name}} ×{{item.quantity}}</text>
+    <text class="badge {{item.badge}}">{{item.status}}</text>
+  </view>
+  <view class="muted" style="margin-top:10rpx;">用途：{{item.purpose || '-'}}</view>
+  <view class="muted" style="margin-top:6rpx;">
+    借出：{{item.borrow_time || '-'}} ｜ 归还：{{item.return_time || '预计 ' + (item.expect_return_time || '-')}}
+    <text wx:if="{{item.overdue}}" class="badge badge-red">已逾期</text>
+  </view>
+</view>

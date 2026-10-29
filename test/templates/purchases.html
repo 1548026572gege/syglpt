@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block page_title %}仪器采购申报{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <select id="f-status">
+      <option value="">全部状态</option>
+      <option>草稿</option><option>已提交</option><option>已审批</option><option>已驳回</option><option>已采购</option>
+    </select>
+    <button class="btn btn-outline" onclick="loadList()">查询</button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" onclick="openEdit()">＋ 新建采购申请</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function onPageReady() { await loadList(); }
+
+async function loadList() {
+  const status = document.getElementById("f-status").value;
+  const list = await api("/api/purchases" + (status ? "?status=" + encodeURIComponent(status) : ""));
+  const cols = [
+    { title: "仪器名称", key: "instrument_name" },
+    { title: "型号", render: r => esc(r.model || "-") },
+    { title: "数量", key: "quantity" },
+    { title: "预算(元)", render: r => r.budget ?? "-" },
+    { title: "申请理由", render: r => esc(r.reason || "-") },
+    { title: "申请人", key: "applicant_name" },
+    { title: "申请时间", key: "created_at" },
+    { title: "状态", render: r => badge(r.status) + (r.review_comment ? `<div style="font-size:12px;color:var(--text-muted);margin-top:3px">${esc(r.review_comment)}</div>` : "") },
+    { title: "操作", render: r => opBtns(r) },
+  ];
+  renderTable("list-box", cols, list);
+}
+
+function opBtns(r) {
+  const btns = [];
+  const mine = r.applicant_id === getUser().id;
+  if (r.status === "草稿" && (mine || isAdmin())) {
+    btns.push(`<button class="btn btn-outline btn-sm" onclick='openEdit(${JSON.stringify(r)})'>编辑</button>`);
+    btns.push(`<button class="btn btn-primary btn-sm" onclick="changeStatus(${r.id},'已提交')">提交</button>`);
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="del(${r.id})">删除</button>`);
+  }
+  if (r.status === "已提交" && isAdmin()) {
+    btns.push(`<button class="btn btn-primary btn-sm" onclick="openReview(${r.id},'已审批')">审批通过</button>`);
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="openReview(${r.id},'已驳回')">驳回</button>`);
+  }
+  if (r.status === "已驳回" && (mine || isAdmin())) {
+    btns.push(`<button class="btn btn-danger btn-sm" onclick="del(${r.id})">删除</button>`);
+  }
+  if (r.status === "已审批" && isAdmin()) {
+    btns.push(`<button class="btn btn-primary btn-sm" onclick="changeStatus(${r.id},'已采购')">标记已采购</button>`);
+  }
+  return btns.join(" ") || "-";
+}
+
+function openEdit(item) {
+  const p = item || {};
+  openModal(item ? "编辑采购申请" : "新建采购申请", `
+    <div class="form-group"><label>仪器名称 <span class="req">*</span></label><input type="text" id="pc-name" value="${esc(p.instrument_name || "")}"></div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>型号</label><input type="text" id="pc-model" value="${esc(p.model || "")}"></div>
+      <div class="form-group" style="flex:1"><label>数量</label><input type="number" id="pc-qty" min="1" value="${p.quantity || 1}"></div>
+      <div class="form-group" style="flex:1"><label>预算（元）</label><input type="number" id="pc-budget" min="0" step="0.01" value="${p.budget || 0}"></div>
+    </div>
+    <div class="form-group"><label>申请理由</label><textarea id="pc-reason" placeholder="如：现有显微镜数量不足，无法满足分组实验">${esc(p.reason || "")}</textarea></div>
+    <div class="form-group"><label>保存方式</label>
+      <select id="pc-submit"><option value="">存为草稿</option><option value="1">直接提交申报</option></select></div>
+  `, { onOk: async () => {
+    const body = {
+      instrument_name: formVal("pc-name"), model: formVal("pc-model"),
+      quantity: Number(formVal("pc-qty")) || 1, budget: Number(formVal("pc-budget")) || 0,
+      reason: formVal("pc-reason"), submit: !!formVal("pc-submit"),
+    };
+    if (item) {
+      await api(`/api/purchases/${item.id}`, { method: "PUT", body });
+      if (body.submit) await api(`/api/purchases/${item.id}`, { method: "PUT", body: { status: "已提交" } });
+    } else {
+      await api("/api/purchases", { method: "POST", body });
+    }
+    toast("保存成功"); closeModal(); loadList();
+  }});
+}
+
+async function changeStatus(id, status) {
+  await api(`/api/purchases/${id}`, { method: "PUT", body: { status } });
+  toast("状态已更新"); loadList();
+}
+
+function openReview(id, status) {
+  openModal(status === "已审批" ? "审批通过" : "驳回申请", `
+    <div class="form-group"><label>审批意见</label><textarea id="pv-comment"></textarea></div>
+  `, { onOk: async () => {
+    await api(`/api/purchases/${id}`, { method: "PUT", body: { status, review_comment: formVal("pv-comment") } });
+    toast("操作完成"); closeModal(); loadList();
+  }});
+}
+
+function del(id) {
+  openModal("确认删除", `<p>确定删除该采购申请吗？</p>`, { onOk: async () => {
+    await api(`/api/purchases/${id}`, { method: "DELETE" });
+    toast("删除成功"); closeModal(); loadList();
+  }});
+}
+</script>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block page_title %}操作日志{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <span style="color:var(--text-muted);font-size:13px">系统敏感操作记录（最近 200 条）</span>
+    <div class="spacer"></div>
+    <button class="btn btn-outline" onclick="loadList()">刷新</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function onPageReady() { await loadList(); }
+async function loadList() {
+  const list = await api("/api/logs");
+  renderTable("list-box", [
+    { title: "时间", key: "created_at" },
+    { title: "操作人", key: "user_name", render: r => esc(r.user_name || "系统") },
+    { title: "操作", key: "action", render: r => `<span class="badge badge-blue">${esc(r.action)}</span>` },
+    { title: "详情", key: "detail", render: r => esc(r.detail || "-") },
+  ], list);
+}
+</script>
+{% endblock %}

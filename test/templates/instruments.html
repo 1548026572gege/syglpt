@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block page_title %}仪器台账管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <input type="text" id="kw" placeholder="搜索编号/名称/国资编号" style="width:200px">
+    <select id="f-category"><option value="">全部分类</option></select>
+    <select id="f-status">
+      <option value="">全部状态</option>
+      <option>正常</option><option>借出</option><option>维修中</option><option>损耗</option><option>报废</option>
+    </select>
+    <button class="btn btn-outline" onclick="loadList()">查询</button>
+    <div class="spacer"></div>
+    <span id="admin-btns" style="display:none">
+      <button class="btn btn-primary" onclick="openEdit()">＋ 新增仪器</button>
+      <button class="btn btn-outline" onclick="openImport()">批量导入</button>
+      <button class="btn btn-outline" onclick="downloadFile('/api/instruments/export')">导出台账</button>
+      <button class="btn btn-danger" onclick="batchDel()">🗑 删除选中（<span id="sel-n">0</span>）</button>
+      <button class="btn btn-danger" onclick="delAll()">🗑 清空台账</button>
+    </span>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let categories = [];
+
+async function onPageReady(user) {
+  if (isAdmin()) document.getElementById("admin-btns").style.display = "";
+  document.getElementById("kw").addEventListener("keydown", e => { if (e.key === "Enter") loadList(); });
+  await loadList();
+}
+
+async function loadList() {
+  const params = new URLSearchParams({
+    kw: document.getElementById("kw").value,
+    category: document.getElementById("f-category").value,
+    status: document.getElementById("f-status").value,
+  });
+  const data = await api("/api/instruments?" + params);
+  categories = data.categories;
+  const sel = document.getElementById("f-category");
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">全部分类</option>` + categories.map(c => `<option ${c === cur ? "selected" : ""}>${esc(c)}</option>`).join("");
+
+  const cols = [];
+  if (isAdmin()) cols.push({
+    title: `<input type="checkbox" onchange="selAll(this)" title="全选">`,
+    render: r => `<input type="checkbox" class="row-sel" value="${r.id}" onchange="selCount()">` });
+  cols.push(
+    { title: "仪器编号", key: "code" },
+    { title: "名称", key: "name" },
+    { title: "国资编号", key: "state_code", render: r => esc(r.state_code || "-") },
+    { title: "型号", key: "model", render: r => esc(r.model || "-") },
+    { title: "分类", key: "category", render: r => esc(r.category || "-") },
+    { title: "数量", key: "quantity" },
+    { title: "单价", render: r => r.price ? "¥" + Number(r.price).toFixed(2) : "-" },
+    { title: "存放位置", key: "location" },
+    { title: "状态", render: r => badge(r.status) },
+    { title: "购置日期", key: "purchase_date", render: r => esc(r.purchase_date || "-") },
+    { title: "备注", render: r => esc(r.remark || "-") },
+  );
+  if (isAdmin()) cols.push({ title: "操作", render: r => `
+    <button class="btn btn-outline btn-sm" onclick='openEdit(${JSON.stringify(r)})'>编辑</button>
+    <button class="btn btn-danger btn-sm" onclick="del(${r.id},'${esc(r.name)}')">删除</button>` });
+  renderTable("list-box", cols, data.list);
+  const n = document.getElementById("sel-n");
+  if (n) n.textContent = "0";
+  // 总金额汇总（当前筛选结果）
+  const total = (data.total_amount || 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const box = document.getElementById("list-box");
+  let info = box.querySelector(".table-summary");
+  if (!info) {
+    info = document.createElement("div");
+    info.className = "table-summary";
+    info.style.cssText = "margin-bottom:10px;padding:10px 14px;background:var(--bg-soft);border-radius:6px;font-size:14px;color:var(--text);display:flex;justify-content:space-between";
+    box.insertBefore(info, box.firstChild);
+  }
+  info.innerHTML = `<span>共 <b>${data.list.length}</b> 台仪器</span><span>总金额：<b style="color:var(--primary);font-size:16px">¥ ${total}</b></span>`;
+}
+
+// ---------------- 批量删除 / 清空台账 ----------------
+function selAll(cb) {
+  document.querySelectorAll(".row-sel").forEach(x => x.checked = cb.checked);
+  selCount();
+}
+
+function selCount() {
+  document.getElementById("sel-n").textContent =
+    document.querySelectorAll(".row-sel:checked").length;
+}
+
+function batchDel() {
+  const ids = [...document.querySelectorAll(".row-sel:checked")].map(x => Number(x.value));
+  if (!ids.length) { toast("请先勾选要删除的仪器", "error"); return; }
+  openModal("批量删除确认", `<p>确定删除选中的 <b>${ids.length}</b> 台仪器吗？该操作将记录日志。</p>`,
+    { onOk: async () => {
+      const r = await api("/api/instruments/batch-delete", { method: "POST", body: { ids } });
+      toast(r.msg || "删除成功"); closeModal(); loadList();
+    }});
+}
+
+function delAll() {
+  openModal("清空台账确认", `
+    <p style="color:var(--danger)">即将删除<b>全部仪器台账</b>数据，此操作不可恢复且将记录日志！</p>
+    <div class="form-group"><label>输入 <b>确认清空</b> 以继续</label><input type="text" id="da-confirm" placeholder="确认清空"></div>
+  `, { onOk: async () => {
+    if (formVal("da-confirm") !== "确认清空") { toast("输入不匹配，已取消", "error"); return; }
+    const r = await api("/api/instruments/all", { method: "DELETE" });
+    toast(r.msg || "已清空"); closeModal(); loadList();
+  }});
+}
+
+function openEdit(item) {
+  const i = item || {};
+  const statusOpts = ["正常", "借出", "维修中", "损耗", "报废"]
+    .map(s => `<option ${i.status === s ? "selected" : ""}>${s}</option>`).join("");
+  openModal(item ? "编辑仪器" : "新增仪器", `
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>仪器编号 <span class="req">*</span></label>
+        <input type="text" id="ins-code" value="${esc(i.code || "")}" ${item ? "disabled" : ""}></div>
+      <div class="form-group" style="flex:1"><label>名称 <span class="req">*</span></label>
+        <input type="text" id="ins-name" value="${esc(i.name || "")}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>国资系统编号</label><input type="text" id="ins-state" value="${esc(i.state_code || "")}"></div>
+      <div class="form-group" style="flex:1"><label>型号</label><input type="text" id="ins-model" value="${esc(i.model || "")}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>分类</label><input type="text" id="ins-category" list="cat-list" value="${esc(i.category || "")}">
+        <datalist id="cat-list">${categories.map(c => `<option>${esc(c)}</option>`).join("")}</datalist></div>
+      <div class="form-group" style="flex:1"><label>数量</label><input type="number" id="ins-qty" min="1" value="${i.quantity || 1}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>单价（元）</label><input type="number" id="ins-price" min="0" step="0.01" value="${i.price ?? ""}"></div>
+      <div class="form-group" style="flex:1"><label>存放位置</label><input type="text" id="ins-location" value="${esc(i.location || "")}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>状态</label><select id="ins-status">${statusOpts}</select></div>
+      <div class="form-group" style="flex:1"><label>购置日期</label><input type="date" id="ins-pdate" value="${esc(i.purchase_date || "")}"></div>
+    </div>
+    <div class="form-group"><label>备注</label><input type="text" id="ins-remark" value="${esc(i.remark || "")}"></div>
+  `, { onOk: async () => {
+    const body = {
+      state_code: formVal("ins-state"), name: formVal("ins-name"), model: formVal("ins-model"),
+      category: formVal("ins-category"), quantity: Number(formVal("ins-qty")) || 1,
+      price: formVal("ins-price") === "" ? 0 : Number(formVal("ins-price")),
+      location: formVal("ins-location"), status: formVal("ins-status"), purchase_date: formVal("ins-pdate"),
+      remark: formVal("ins-remark"),
+    };
+    if (item) {
+      await api(`/api/instruments/${item.id}`, { method: "PUT", body });
+    } else {
+      body.code = formVal("ins-code");
+      await api("/api/instruments", { method: "POST", body });
+    }
+    toast("保存成功"); closeModal(); loadList();
+  }});
+}
+
+async function del(id, name) {
+  openModal("确认删除", `<p>确定删除仪器「${esc(name)}」吗？该操作将记录日志。</p>`, { onOk: async () => {
+    await api(`/api/instruments/${id}`, { method: "DELETE" });
+    toast("删除成功"); closeModal(); loadList();
+  }});
+}
+
+function openImport() {
+  openModal("批量导入仪器", `
+    <p style="margin-bottom:12px;color:var(--text-muted)">请使用模板填写后上传 xlsx 文件（编号重复的仪器将自动跳过）。</p>
+    <p style="margin-bottom:12px"><a href="javascript:downloadFile('/api/instruments/template')" style="color:var(--primary)">⬇ 下载导入模板</a></p>
+    <input type="file" id="imp-file" accept=".xlsx,.xlsm">
+  `, { onOk: async () => {
+    const f = document.getElementById("imp-file").files[0];
+    if (!f) { toast("请选择文件", "error"); return; }
+    const fd = new FormData(); fd.append("file", f);
+    const resp = await fetch("/api/instruments/import", { method: "POST",
+      headers: { "Authorization": "Bearer " + getToken() }, body: fd });
+    const data = await resp.json();
+    if (data.code !== 0) { toast(data.msg || "导入失败", "error"); return; }
+    closeModal();
+    openModal("导入结果", `<p>${esc(data.msg)}</p>` +
+      (data.data.errors.length ? `<ul style="margin-top:10px;color:var(--warning);font-size:13px">${data.data.errors.map(e => `<li>${esc(e)}</li>`).join("")}</ul>` : ""),
+      { hideFooter: true });
+    loadList();
+  }});
+}
+</script>
+{% endblock %}

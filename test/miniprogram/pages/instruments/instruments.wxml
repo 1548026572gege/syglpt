@@ -1,0 +1,12 @@
+<view style="padding:20rpx;">
+  <input placeholder="搜索编号/名称" bindconfirm="onSearch" style="background:#fff;border-radius:30rpx;padding:16rpx 30rpx;" />
+</view>
+<view wx:if="{{!list.length}}" class="empty">暂无仪器数据</view>
+<view class="card" wx:for="{{list}}" wx:key="id">
+  <view class="row">
+    <text style="font-weight:bold;">{{item.name}}</text>
+    <text class="badge {{item.badge}}">{{item.status}}</text>
+  </view>
+  <view class="muted" style="margin-top:10rpx;">编号：{{item.code}} ｜ 型号：{{item.model || '-'}}</view>
+  <view class="muted" style="margin-top:6rpx;">库存：{{item.quantity}} ｜ 位置：{{item.location || '-'}}</view>
+</view>

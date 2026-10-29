@@ -1,0 +1,11 @@
+{
+  "description": "生物实验室管理平台 微信小程序端（教师端）",
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "libVersion": "latest",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "minified": true
+  }
+}

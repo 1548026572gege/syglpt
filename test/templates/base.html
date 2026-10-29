@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}生物实验室管理平台{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo"><span class="logo-icon">🧬</span><span>生物实验室平台</span></div>
+    <nav class="nav" id="nav"></nav>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="page-title">{% block page_title %}{% endblock %}</div>
+      <div class="user-box">
+        <span class="user-name" id="top-user-name"></span>
+        <span class="user-role" id="top-user-role"></span>
+        <button class="btn btn-outline btn-sm" onclick="openProfile()">个人信息</button>
+        <button class="btn btn-outline btn-sm" onclick="openChangePwd()">修改密码</button>
+        <button class="btn btn-danger btn-sm" onclick="logout()">退出</button>
+      </div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script src="/static/js/api.js?v=2"></script>
+<script>
+const NAV_ITEMS = [
+  { section: "概览" },
+  { href: "dashboard", icon: "📊", text: "工作台", roles: ["teacher", "admin", "sysadmin"] },
+  { section: "实验教学" },
+  { href: "reservations", icon: "📅", text: "实验预约", roles: ["teacher", "admin", "sysadmin"] },
+  { href: "reports", icon: "📝", text: "实验报告", roles: ["teacher", "admin", "sysadmin"] },
+  { href: "notices", icon: "📢", text: "实验通知单", roles: ["teacher", "admin", "sysadmin"] },
+  { section: "仪器管理" },
+  { href: "instruments", icon: "🔬", text: "仪器台账", roles: ["teacher", "admin", "sysadmin"] },
+  { href: "borrows", icon: "📦", text: "仪器借用", roles: ["teacher", "admin", "sysadmin"] },
+  { href: "repairs", icon: "🔧", text: "维修管理", roles: ["teacher", "admin", "sysadmin"] },
+  { href: "losses", icon: "🗑️", text: "损耗管理", roles: ["admin", "sysadmin"] },
+  { href: "purchases", icon: "🛒", text: "采购申报", roles: ["teacher", "admin", "sysadmin"] },
+  { href: "catalog", icon: "📋", text: "仪器配备目录", roles: ["teacher", "admin", "sysadmin"] },
+  { section: "系统管理", roles: ["admin", "sysadmin"] },
+  { href: "users", icon: "👥", text: "账号管理", roles: ["admin", "sysadmin"] },
+  { href: "stats", icon: "📈", text: "统计报表", roles: ["admin", "sysadmin"] },
+  { href: "logs", icon: "📜", text: "操作日志", roles: ["admin", "sysadmin"] },
+];
+const ROLE_NAME = { teacher: "生物教师", admin: "实验管理员", sysadmin: "系统管理员" };
+
+let currentUser = null;
+(async function initLayout() {
+  currentUser = await requireAuth();
+  if (!currentUser) return;
+  document.getElementById("top-user-name").textContent = currentUser.name;
+  document.getElementById("top-user-role").textContent = ROLE_NAME[currentUser.role] || currentUser.role;
+  const page = location.pathname.split("/").pop();
+  let html = "";
+  for (const item of NAV_ITEMS) {
+    if (item.section) {
+      if (item.roles && !item.roles.includes(currentUser.role)) continue;
+      html += `<div class="nav-section">${item.section}</div>`;
+      continue;
+    }
+    if (!item.roles.includes(currentUser.role)) continue;
+    html += `<a class="nav-item ${item.href === page ? "active" : ""}" href="/page/${item.href}">
+      <span class="nav-ico">${item.icon}</span><span class="nav-text">${item.text}</span></a>`;
+  }
+  document.getElementById("nav").innerHTML = html;
+  if (typeof onPageReady === "function") onPageReady(currentUser);
+})();
+
+function openProfile() {
+  const u = currentUser;
+  openModal("个人信息", `
+    <div class="form-group"><label>账号</label><input type="text" value="${esc(u.username)}" disabled></div>
+    <div class="form-group"><label>姓名</label><input type="text" id="pf-name" value="${esc(u.name)}"></div>
+    <div class="form-group"><label>联系电话</label><input type="text" id="pf-phone" value="${esc(u.phone || "")}"></div>
+    ${u.role === "teacher" ? `<div class="form-group"><label>任教班级（逗号分隔）</label><input type="text" id="pf-classes" value="${esc(u.classes || "")}"></div>` : ""}
+  `, { onOk: async () => {
+    const body = { name: formVal("pf-name"), phone: formVal("pf-phone") };
+    if (u.role === "teacher") body.classes = formVal("pf-classes");
+    await api("/api/profile", { method: "PUT", body });
+    currentUser = await api("/api/profile");
+    localStorage.setItem(USER_KEY, JSON.stringify(currentUser));
+    document.getElementById("top-user-name").textContent = currentUser.name;
+    toast("保存成功"); closeModal();
+  }});
+}
+
+function openChangePwd() {
+  openModal("修改密码", `
+    <div class="form-group"><label>原密码</label><input type="password" id="pw-old"></div>
+    <div class="form-group"><label>新密码（至少6位）</label><input type="password" id="pw-new"></div>
+    <div class="form-group"><label>确认新密码</label><input type="password" id="pw-new2"></div>
+  `, { onOk: async () => {
+    if (formVal("pw-new") !== formVal("pw-new2")) { toast("两次输入的新密码不一致", "error"); return; }
+    await api("/api/password", { method: "PUT", body: { old_password: formVal("pw-old"), new_password: formVal("pw-new") } });
+    toast("密码修改成功"); closeModal();
+  }});
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

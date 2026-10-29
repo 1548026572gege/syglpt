@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block page_title %}仪器借用管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <select id="f-status">
+      <option value="">全部状态</option>
+      <option>申请中</option><option>已借出</option><option>已归还</option><option>已驳回</option>
+    </select>
+    <label style="display:flex;align-items:center;gap:5px;font-size:13px">
+      <input type="checkbox" id="f-overdue" style="width:auto"> 仅看逾期未还
+    </label>
+    <button class="btn btn-outline" onclick="loadList()">查询</button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" onclick="openApply()">＋ 申请借用</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let instruments = [];
+
+async function onPageReady() {
+  const data = await api("/api/instruments");
+  instruments = data.list.filter(i => i.status === "正常" && i.quantity > 0);
+  await loadList();
+}
+
+async function loadList() {
+  const params = new URLSearchParams({ status: document.getElementById("f-status").value });
+  if (document.getElementById("f-overdue").checked) params.set("overdue", "1");
+  const list = await api("/api/borrows?" + params);
+  list.forEach(r => { if (r.overdue) r._rowClass = "overdue-row"; });
+  const cols = [
+    { title: "仪器", render: r => `${esc(r.instrument_name)}<div style="font-size:12px;color:var(--text-muted)">${esc(r.instrument_code)}</div>` },
+    { title: "借用人", key: "teacher_name" },
+    { title: "数量", key: "quantity" },
+    { title: "用途", key: "purpose", render: r => esc(r.purpose || "-") },
+    { title: "预计归还", render: r => (r.expect_return_time || "-") + (r.overdue ? ` <span class="badge badge-red">已逾期</span>` : "") },
+    { title: "借出时间", render: r => r.borrow_time || "-" },
+    { title: "归还时间", render: r => r.return_time ? `${r.return_time}<div style="font-size:12px;color:var(--text-muted)">${esc(r.return_status || "")}</div>` : "-" },
+    { title: "状态", render: r => badge(r.status) },
+    { title: "操作", render: r => opBtns(r) },
+  ];
+  renderTable("list-box", cols, list);
+}
+
+function opBtns(r) {
+  if (!isAdmin()) return "-";
+  if (r.status === "申请中") {
+    return `<button class="btn btn-primary btn-sm" onclick="lend(${r.id})">确认借出</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectBorrow(${r.id})">驳回</button>`;
+  }
+  if (r.status === "已借出") {
+    return `<button class="btn btn-primary btn-sm" onclick="openReturn(${r.id})">归还登记</button>`;
+  }
+  return "-";
+}
+
+function openApply() {
+  if (!instruments.length) { toast("当前无可借用的仪器", "error"); return; }
+  openModal("申请借用仪器", `
+    <div class="form-group"><label>选择仪器 <span class="req">*</span></label>
+      <select id="br-ins">${instruments.map(i => `<option value="${i.id}" data-qty="${i.quantity}">${esc(i.name)}（${esc(i.code)}，库存 ${i.quantity}）</option>`).join("")}</select></div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>借用数量 <span class="req">*</span></label><input type="number" id="br-qty" min="1" value="1"></div>
+      <div class="form-group" style="flex:1"><label>预计归还时间</label><input type="datetime-local" id="br-expect"></div>
+    </div>
+    <div class="form-group"><label>用途说明</label><textarea id="br-purpose" placeholder="如：高一(1)班分组实验使用"></textarea></div>
+  `, { onOk: async () => {
+    await api("/api/borrows", { method: "POST", body: {
+      instrument_id: Number(formVal("br-ins")), quantity: Number(formVal("br-qty")) || 1,
+      expect_return_time: formVal("br-expect"), purpose: formVal("br-purpose"),
+    }});
+    toast("借用申请已提交"); closeModal(); loadList();
+  }});
+}
+
+async function lend(id) {
+  await api(`/api/borrows/${id}/lend`, { method: "PUT" });
+  toast("已确认借出"); loadList();
+}
+
+function rejectBorrow(id) {
+  openModal("驳回借用申请", `<p>确定驳回该借用申请吗？</p>`, { onOk: async () => {
+    await api(`/api/borrows/${id}/reject`, { method: "PUT" });
+    toast("已驳回"); closeModal(); loadList();
+  }});
+}
+
+function openReturn(id) {
+  openModal("归还登记", `
+    <div class="form-group"><label>归还时仪器状态</label>
+      <select id="rt-status"><option>完好</option><option>有损坏</option><option>缺失配件</option></select></div>
+  `, { onOk: async () => {
+    await api(`/api/borrows/${id}/return`, { method: "PUT", body: { return_status: formVal("rt-status") } });
+    toast("归还登记完成"); closeModal(); loadList();
+  }});
+}
+</script>
+{% endblock %}

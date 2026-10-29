@@ -1,0 +1,11 @@
+<view wx:if="{{!list.length}}" class="empty">暂无通知</view>
+<view class="card" wx:for="{{list}}" wx:key="id" style="border-left:6rpx solid #2563eb;">
+  <view style="font-weight:bold;font-size:30rpx;">{{item.title}}</view>
+  <view class="muted" style="margin-top:12rpx;">
+    <block wx:if="{{item.experiment_time}}">🕐 {{item.experiment_time}}　</block>
+    <block wx:if="{{item.lab_name}}">📍 {{item.lab_name}}</block>
+  </view>
+  <view class="muted" wx:if="{{item.instruments}}" style="margin-top:6rpx;">🔬 所需仪器：{{item.instruments}}</view>
+  <view style="margin-top:14rpx;line-height:1.7;white-space:pre-wrap;">{{item.content}}</view>
+  <view class="muted" style="margin-top:14rpx;font-size:22rpx;">{{item.sender_name}} 发布于 {{item.created_at}}</view>
+</view>

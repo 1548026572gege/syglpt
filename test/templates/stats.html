@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block page_title %}统计报表{% endblock %}
+{% block content %}
+<div class="stat-grid" id="stat-grid"></div>
+<div class="chart-grid">
+  <div class="chart-box"><h4>仪器状态分布</h4><div id="c-ins-status"></div></div>
+  <div class="chart-box"><h4>仪器分类分布</h4><div id="c-ins-cat"></div></div>
+  <div class="chart-box"><h4>仪器借用次数 TOP10（使用率）</h4><div id="c-borrow"></div></div>
+  <div class="chart-box"><h4>各实验室预约频次</h4><div id="c-lab"></div></div>
+  <div class="chart-box"><h4>预约状态分布</h4><div id="c-rv"></div></div>
+  <div class="chart-box"><h4>维修状态统计</h4><div id="c-repair"></div></div>
+  <div class="chart-box"><h4>仪器损耗统计</h4><div id="c-loss"></div></div>
+  <div class="chart-box"><h4>采购需求汇总</h4><div id="c-purchase"></div></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renderBars(id, rows, unit = "") {
+  const box = document.getElementById(id);
+  if (!rows || !rows.length) { box.innerHTML = `<div class="empty-tip">暂无数据</div>`; return; }
+  const max = Math.max(...rows.map(r => r.value), 1);
+  box.innerHTML = rows.map(r => `
+    <div class="bar-row">
+      <span class="bar-label" title="${esc(r.name)}">${esc(r.name)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${Math.round(r.value / max * 100)}%"></div></div>
+      <span class="bar-val">${r.value}${unit}</span>
+    </div>`).join("");
+}
+
+async function onPageReady() {
+  const overview = await api("/api/stats/overview");
+  document.getElementById("stat-grid").innerHTML = [
+    ["仪器种类", overview.instrument_total, ""], ["仪器总数", overview.instrument_qty, ""],
+    ["累计预约", overview.reservation_total, "info"], ["累计报告", overview.report_total, "info"],
+    ["当前借出", overview.borrow_active, "warn"], ["维修中", overview.repair_active, "danger"],
+    ["累计损耗", overview.loss_total, "danger"], ["系统用户", overview.user_total, ""],
+  ].map(([l, v, c]) => `<div class="stat-card ${c}"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`).join("");
+
+  const d = await api("/api/stats/report");
+  renderBars("c-ins-status", d.instrument_status);
+  renderBars("c-ins-cat", d.instrument_category);
+  renderBars("c-borrow", d.top_borrowed, " 次");
+  renderBars("c-lab", d.reservation_by_lab, " 次");
+  renderBars("c-rv", d.reservation_status);
+  renderBars("c-repair", [...d.repair_status, { name: "累计维修费用", value: d.repair_cost_total }]);
+  renderBars("c-loss", d.loss_by_instrument, " 件");
+  renderBars("c-purchase", d.purchase_summary.map(p => ({ name: p.status, value: p.count })));
+  document.getElementById("c-purchase").innerHTML += d.purchase_summary.length
+    ? `<div style="margin-top:10px;font-size:13px;color:var(--text-muted)">预算合计：<strong style="color:var(--primary)">￥${d.purchase_summary.reduce((s, p) => s + (p.budget || 0), 0).toFixed(2)}</strong></div>` : "";
+}
+</script>
+{% endblock %}

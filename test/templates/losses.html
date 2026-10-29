@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block page_title %}仪器损耗管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <input type="text" id="kw" placeholder="搜索仪器编号/名称" style="width:200px">
+    <button class="btn btn-outline" onclick="loadList()">查询</button>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" onclick="openCreate()">＋ 损耗登记</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let instruments = [];
+
+async function onPageReady() {
+  const data = await api("/api/instruments");
+  instruments = data.list.filter(i => i.quantity > 0 && i.status !== "报废");
+  document.getElementById("kw").addEventListener("keydown", e => { if (e.key === "Enter") loadList(); });
+  await loadList();
+}
+
+async function loadList() {
+  const kw = document.getElementById("kw").value;
+  const list = await api("/api/losses" + (kw ? "?kw=" + encodeURIComponent(kw) : ""));
+  const cols = [
+    { title: "仪器", render: r => `${esc(r.instrument_name)}<div style="font-size:12px;color:var(--text-muted)">${esc(r.instrument_code)}</div>` },
+    { title: "损耗数量", key: "quantity" },
+    { title: "损耗时间", key: "loss_time" },
+    { title: "损耗原因", key: "reason", render: r => esc(r.reason || "-") },
+    { title: "责任人", render: r => esc(r.responsible || "-") },
+    { title: "登记人", key: "handler_name" },
+    { title: "操作", render: r => `<button class="btn btn-danger btn-sm" onclick="del(${r.id})">删除</button>` },
+  ];
+  renderTable("list-box", cols, list);
+}
+
+function openCreate() {
+  openModal("损耗登记", `
+    <div class="form-group"><label>损耗仪器 <span class="req">*</span></label>
+      <select id="ls-ins">${instruments.map(i => `<option value="${i.id}">${esc(i.name)}（${esc(i.code)}，库存 ${i.quantity}）</option>`).join("")}</select></div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>损耗数量 <span class="req">*</span></label><input type="number" id="ls-qty" min="1" value="1"></div>
+      <div class="form-group" style="flex:1"><label>责任人</label><input type="text" id="ls-resp"></div>
+    </div>
+    <div class="form-group"><label>损耗原因</label><textarea id="ls-reason" placeholder="如：学生实验中打碎"></textarea></div>
+  `, { onOk: async () => {
+    await api("/api/losses", { method: "POST", body: {
+      instrument_id: Number(formVal("ls-ins")), quantity: Number(formVal("ls-qty")) || 1,
+      reason: formVal("ls-reason"), responsible: formVal("ls-resp"),
+    }});
+    toast("损耗登记成功"); closeModal(); loadList();
+  }});
+}
+
+function del(id) {
+  openModal("确认删除", `<p>确定删除该损耗记录吗？删除后仪器库存将回补。</p>`, { onOk: async () => {
+    await api(`/api/losses/${id}`, { method: "DELETE" });
+    toast("删除成功"); closeModal(); loadList();
+  }});
+}
+</script>
+{% endblock %}

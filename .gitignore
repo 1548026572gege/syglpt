@@ -15,6 +15,9 @@ test/uploads/
 .env
 test/secret.key
 
+# 同步日志
+sync.log
+
 # IDE
 .idea/
 .vscode/

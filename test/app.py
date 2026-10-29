@@ -110,7 +110,7 @@ def seed_data():
                           content="请各班实验小组组长提前10分钟到实验室领取实验材料，注意规范使用显微镜。",
                           sender_id=admin.id))
     db.session.commit()
-    #print("[初始化] 已创建初始账号 admin/admin123、teacher/teacher123 及示例仪器数据")
+    
 
 
 app = create_app()

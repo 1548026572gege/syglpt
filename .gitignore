@@ -15,8 +15,9 @@ test/uploads/
 .env
 test/secret.key
 
-# 同步日志
+# 同步日志与运行日志
 sync.log
+test/logs/
 
 # IDE
 .idea/

@@ -12,9 +12,16 @@ Write-Log "===== sync start ====="
 
 try {
     $pullOut = git pull origin main 2>&1
-    Write-Log "git pull: $pullOut"
+    Write-Log "git pull origin(GitHub): $pullOut"
 } catch {
-    Write-Log "git pull FAILED: $_"
+    Write-Log "git pull origin(GitHub) FAILED: $_"
+}
+
+try {
+    $pullOut = git pull gitee main 2>&1
+    Write-Log "git pull gitee: $pullOut"
+} catch {
+    Write-Log "git pull gitee FAILED: $_"
 }
 
 # Stage all tracked/untracked files EXCEPT runtime log

@@ -32,9 +32,16 @@ if ($status) {
 
 try {
     $pushOut = git push origin main 2>&1
-    Write-Log "git push: $pushOut"
+    Write-Log "git push origin(GitHub): $pushOut"
 } catch {
-    Write-Log "git push FAILED: $_"
+    Write-Log "git push origin(GitHub) FAILED: $_"
+}
+
+try {
+    $pushOut = git push gitee main 2>&1
+    Write-Log "git push gitee: $pushOut"
+} catch {
+    Write-Log "git push gitee FAILED: $_"
 }
 
 Write-Log "===== sync end ====="

@@ -32,7 +32,9 @@ async function loadList() {
     { title: "创建时间", key: "created_at" },
     { title: "操作", render: r => `
       <button class="btn btn-outline btn-sm" onclick='openEdit(${JSON.stringify(r)})'>编辑</button>
-      <button class="btn btn-danger btn-sm" onclick="del(${r.id},'${esc(r.username)}')">删除</button>` },
+      ${r.username === "admin"
+        ? '<span class="badge badge-gray">内置账号</span>'
+        : `<button class="btn btn-danger btn-sm" onclick="del(${r.id},'${esc(r.username)}')">删除</button>`}` },
   ];
   renderTable("list-box", cols, list);
 }

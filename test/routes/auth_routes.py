@@ -8,6 +8,9 @@ from auth import (hash_password, check_password, generate_token,
 
 bp = Blueprint("auth", __name__, url_prefix="/api")
 
+# 内置账号：不允许删除，避免系统失去管理员
+PROTECTED_USERNAMES = {"admin"}
+
 
 @bp.post("/login")
 def login():
@@ -112,6 +115,8 @@ def delete_user(uid):
     u = db.session.get(User, uid)
     if not u:
         return jsonify({"code": 404, "msg": "用户不存在"}), 404
+    if u.username in PROTECTED_USERNAMES:
+        return jsonify({"code": 400, "msg": "内置管理员账号 admin 不能删除"}), 400
     db.session.delete(u)
     db.session.commit()
     log_action("删除用户", f"账号:{u.username}")

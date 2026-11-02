@@ -1,6 +1,7 @@
 package com.biolab.app;
 
 import android.annotation.SuppressLint;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -8,10 +9,11 @@ import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Base64;
 import android.view.KeyEvent;
 import android.view.View;
 import android.webkit.CookieManager;
-import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -23,6 +25,11 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -74,14 +81,17 @@ public class MainActivity extends AppCompatActivity {
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
 
+        // 供网页保存导出文件（WebView 自身无法保存 blob 下载）
+        webView.addJavascriptInterface(new DownloadBridge(), "AndroidDownload");
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                // 拦截文件下载，交给系统浏览器或下载器
-                if (url.contains("/api/") && (url.contains("/export") || url.contains("/download"))) {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                    startActivity(intent);
+                // 导出/下载模板：在页面内走带鉴权的下载，不再跳出应用到外部浏览器
+                if (url.contains("/api/")
+                        && (url.contains("/export") || url.contains("/template") || url.contains("/download"))) {
+                    view.evaluateJavascript("downloadFile('" + url + "')", null);
                     return true;
                 }
                 view.loadUrl(url);
@@ -123,18 +133,51 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 下载监听
-        webView.setDownloadListener(new DownloadListener() {
-            @Override
-            public void onDownloadStart(String url, String userAgent, String contentDisposition,
-                                        String mimetype, long contentLength) {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                startActivity(intent);
-            }
-        });
-
         // 长按菜单（复制等）
         registerForContextMenu(webView);
+    }
+
+    /**
+     * 网页下载桥：接收文件 base64，保存到应用下载目录并调起系统打开
+     * 由 /static/js/api.js 的 downloadFile() 调用
+     */
+    public class DownloadBridge {
+        @JavascriptInterface
+        public void saveFile(String filename, String mimeType, String base64) {
+            try {
+                String name = (filename == null || filename.isEmpty()) ? "download" : filename;
+                name = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+                byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
+                File dir = getExternalFilesDir("downloads");
+                if (dir == null) dir = new File(getFilesDir(), "downloads");
+                if (!dir.exists() && !dir.mkdirs()) throw new IOException("无法创建下载目录");
+                File file = new File(dir, name);
+                try (FileOutputStream out = new FileOutputStream(file)) {
+                    out.write(bytes);
+                }
+                final File saved = file;
+                final String mime = (mimeType == null || mimeType.isEmpty())
+                        ? "application/octet-stream" : mimeType;
+                runOnUiThread(() -> openFile(saved, mime));
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                        "保存失败：" + e.getMessage(), Toast.LENGTH_LONG).show());
+            }
+        }
+    }
+
+    private void openFile(File file, String mimeType) {
+        try {
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+            Intent intent = new Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, mimeType)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Toast.makeText(this, "已保存：" + file.getName(), Toast.LENGTH_SHORT).show();
+            startActivity(Intent.createChooser(intent, "打开文件"));
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "文件已保存：" + file.getAbsolutePath()
+                    + "\n请安装 WPS 或 Excel 后打开", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void loadUrl(String url) {

@@ -107,15 +107,37 @@ function esc(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-/* 带鉴权的文件下载 */
+/* blob 转 base64（安卓 App 保存导出文件用） */
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/* 带鉴权的文件下载：安卓 App 走原生保存，浏览器走 <a download> */
 async function downloadFile(url) {
   const resp = await fetch(url, { headers: { "Authorization": "Bearer " + getToken() } });
   if (!resp.ok) { toast("下载失败", "error"); return; }
   const dispo = resp.headers.get("Content-Disposition") || "";
   let fname = "download.xlsx";
   const m = dispo.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
-  if (m) fname = decodeURIComponent(m[1].replace(/"/g, ""));
+  if (m) fname = decodeURIComponent(m[1].replace(/"/g, "").trim());
   const blob = await resp.blob();
+
+  // 安卓 App：WebView 无法保存 blob 文件，交给原生 DownloadBridge 保存并打开
+  if (window.AndroidDownload && typeof window.AndroidDownload.saveFile === "function") {
+    try {
+      const base64 = await blobToBase64(blob);
+      window.AndroidDownload.saveFile(fname, blob.type || "application/octet-stream", base64);
+    } catch (e) {
+      toast("保存失败：" + e.message, "error");
+    }
+    return;
+  }
+
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = fname;

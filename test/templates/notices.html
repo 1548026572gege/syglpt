@@ -19,11 +19,12 @@
   let notices = [];
 
   async function onPageReady() {
-    if (isAdmin()) document.getElementById("admin-btns").style.display = "";
+    document.getElementById("admin-btns").style.display = "";
     await loadList();
   }
 
   const trunc = (s, n = 20) => { s = s || ""; return s.length > n ? s.slice(0, n) + "…" : s; };
+  const canEditNotice = r => isAdmin() || r.sender_id === getUser().id;
 
   async function loadList() {
     notices = await api("/api/notices");
@@ -41,7 +42,7 @@
       {
         title: "操作", render: r => `
       <button class="btn btn-outline btn-sm" onclick='printOne(${JSON.stringify(r)})'>打印</button>` +
-          (isAdmin() ? `
+          (canEditNotice(r) ? `
       <button class="btn btn-outline btn-sm" onclick='openEdit(${JSON.stringify(r)})'>编辑</button>
       <button class="btn btn-danger btn-sm" onclick="del(${r.id})">删除</button>` : "")
       },
@@ -60,6 +61,8 @@
     const subjects = ["生物学"];
     const subjectOpts = subjects.map(s => `<option>${esc(s)}</option>`).join("");
     openModal(item ? "编辑通知单" : "发布实验通知单", `
+    <div class="form-group"><label>从初中实验名单选择（可选，自动填入实验名称与仪器用品）</label>
+      <select onchange="fillExperiment(this, 'nt-title', 'nt-ins')">${experimentOptions(n.title)}</select></div>
     <div class="form-row">
       <div class="form-group" style="flex:1"><label>科目 <span class="req">*</span></label>
         <input type="text" id="nt-subject" list="subject-list" value="${esc(n.subject || "")}">

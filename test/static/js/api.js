@@ -144,3 +144,47 @@ async function downloadFile(url) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+/* ---------- 初中生物实验名单：选择后自动填入实验名称与材料器具 ---------- */
+const BIOLOGY_EXPERIMENTS = [
+  { name: "探究影响鼠妇分布的环境因素", materials: "若干只鼠妇（或蚯蚓等），湿土，铁盘（或塑料盘、纸盒等），纸板，玻璃板，电子秒表（或其他计时工具）" },
+  { name: "制作并观察植物细胞临时装片", materials: "洋葱鳞片叶，碘液，显微镜，载玻片，盖玻片，镊子，刀片（使用时请注意安全），滴管，纱布，清水，擦镜纸，吸水纸" },
+  { name: "观察人的口腔上皮细胞", materials: "生理盐水，碘液，一次性水杯，凉开水，无菌牙签（有钝端），滴管，纱布，镊子，吸水纸，载玻片，盖玻片，显微镜" },
+  { name: "观察人体的基本组织", materials: "人体四种基本组织的永久玻片标本，显微镜" },
+  { name: "观察草履虫", materials: "草履虫培养液，显微镜，放大镜，纱布，镊子，载玻片，盖玻片，滴管，少许棉花纤维" },
+  { name: "观察种子的结构", materials: "浸软的菜豆种子（或大豆、蚕豆等）和玉米种子，碘液，放大镜，刀片（使用时请注意安全），滴管" },
+  { name: "探究种子萌发的环境条件", materials: "培养皿、吸水纸、标签纸、胶水、清水、种子" },
+  { name: "观察根毛和根尖的结构", materials: "显微镜、放大镜、镊子、培养皿、根尖的永久切片、已经长出根毛的幼苗" },
+  { name: "观察和解剖花的结构", materials: "桃花（洋桔梗花或其他类似的花），放大镜，解剖刀，镊子，培养皿，胶带纸、解剖针、铅笔、尺子、小木板" },
+  { name: "观察叶片横切面结构", materials: "新鲜叶片；显微镜，双面刀片（两片，并排在一起，一侧用胶布粘牢），镊子，载玻片，盖玻片，盛有清水的培养皿，滴管，吸水纸，纱布，毛笔，小木板" },
+  { name: "制作并观察叶片下表皮的临时装片", materials: "新鲜叶片（如菠菜、蚕豆叶片）、显微镜、镊子、载玻片、盖玻片、滴管、吸水纸、纱布" },
+  { name: "绿叶在光下制造有机物", materials: "已经过预处理的铜钱草叶片（或天竺葵等）（保留遮光的黑纸片）、酒精、碘液、小烧杯、培养皿、镊子、清水、恒温水浴锅（或酒精灯、大烧杯、三脚架、陶土网、火柴）" },
+  { name: "测定某种食物中的能量", materials: "花生种子（或者其他种子），水，锥形瓶，铁架台，温度计，酒精灯，电子天平，解剖针，火柴，陶土网（石棉网）" },
+  { name: "探究口腔对馒头的消化作用", materials: "新鲜馒头块，碘液，凉开水，小试管3支，标签纸，量筒，小烧杯，镊子，玻璃棒，试管刷，滴管，恒温水浴锅，刀片，垫板" },
+  { name: "观察人血的永久涂片", materials: "人血的永久涂片，显微镜" },
+  { name: "观察小鱼尾鳍内血管及血液的流动", materials: "尾鳍色素少的活的小鱼，显微镜，培养皿，滴管，棉絮(纱布)，载玻片，烧杯" },
+  { name: "检测不同环境中的细菌和真菌", materials: "硬币、已高温灭菌的装有牛肉汁培养基的培养皿、标签纸、笔、无菌棉棒、蒸馏水" },
+  { name: "观察酵母菌", materials: "酵母菌培养液；显微镜，擦镜纸，纱布，镊子，吸水纸，滴管，载玻片，盖玻片，碘液" },
+  { name: "观察霉菌", materials: "青霉，显微镜，放大镜，纱布，镊子，解剖针，吸水纸，滴管，载玻片，盖玻片" },
+  { name: "模拟人的性别决定过程", materials: "黑围棋子（10粒）、白围棋子（30粒）、纸盒（2个）" },
+  { name: "探究酒精对水蚤心率的影响", materials: "活水蚤，显微镜、纱布、计数器，计时工具（带倒计时功能）、小烧杯，滴管，载玻片、盖玻片，酒精(10%)，蒸馏水" },
+];
+
+/* 下拉选项：0 = 手动填写；传入已选名称可自动选中 */
+function experimentOptions(selectedName) {
+  const opts = BIOLOGY_EXPERIMENTS.map((e, i) =>
+    `<option value="${i + 1}" ${e.name === selectedName ? "selected" : ""}>${i + 1}、${esc(e.name)}</option>`).join("");
+  return `<option value="">— 手动填写 / 从初中实验名单选择 —</option>${opts}`;
+}
+
+/* 选中名单后自动填入名称与材料器具 */
+function fillExperiment(selectEl, nameId, materialId) {
+  const idx = Number(selectEl.value);
+  if (!idx) return;
+  const e = BIOLOGY_EXPERIMENTS[idx - 1];
+  if (!e) return;
+  const nameEl = document.getElementById(nameId);
+  const matEl = document.getElementById(materialId);
+  if (nameEl) nameEl.value = e.name;
+  if (matEl) matEl.value = e.materials;
+}

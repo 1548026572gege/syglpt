@@ -25,7 +25,7 @@ def list_notices():
 
 
 @bp.post("")
-@role_required("admin", "sysadmin")
+@role_required("teacher", "admin", "sysadmin")
 def create_notice():
     data = request.get_json(force=True, silent=True) or {}
     if not data.get("title"):
@@ -37,12 +37,20 @@ def create_notice():
     return jsonify({"code": 0, "msg": "通知已发送", "data": n.to_dict()})
 
 
+def _may_modify(n):
+    """管理员可编辑任意通知单，教师只能编辑自己发布的"""
+    return (g.current_user.role in ("admin", "sysadmin")
+            or n.sender_id == g.current_user.id)
+
+
 @bp.put("/<int:nid>")
-@role_required("admin", "sysadmin")
+@login_required
 def update_notice(nid):
     n = db.session.get(Notice, nid)
     if not n:
         return jsonify({"code": 404, "msg": "通知不存在"}), 404
+    if not _may_modify(n):
+        return jsonify({"code": 403, "msg": "只能编辑自己发布的实验通知单"}), 403
     data = request.get_json(force=True, silent=True) or {}
     for f in FIELDS:
         if f in data:
@@ -52,11 +60,13 @@ def update_notice(nid):
 
 
 @bp.delete("/<int:nid>")
-@role_required("admin", "sysadmin")
+@login_required
 def delete_notice(nid):
     n = db.session.get(Notice, nid)
     if not n:
         return jsonify({"code": 404, "msg": "通知不存在"}), 404
+    if not _may_modify(n):
+        return jsonify({"code": 403, "msg": "只能删除自己发布的实验通知单"}), 403
     db.session.delete(n)
     db.session.commit()
     log_action("删除实验通知单", f"#{nid} {n.title}")

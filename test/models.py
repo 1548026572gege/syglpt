@@ -314,6 +314,7 @@ class Notice(db.Model):
             "experiment_time": self.experiment_time,
             "instruments": self.instruments,
             "content": self.content,
+            "sender_id": self.sender_id,
             "sender_name": self.sender.name if self.sender else "",
             "created_at": self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
         }

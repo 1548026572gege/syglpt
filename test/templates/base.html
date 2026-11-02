@@ -4,17 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}生物实验室管理平台{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=3">
 </head>
 <body>
 <div class="layout">
-  <aside class="sidebar">
+  <div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
+  <aside class="sidebar" id="sidebar">
     <div class="logo"><span class="logo-icon">🧬</span><span>生物实验室平台</span></div>
     <nav class="nav" id="nav"></nav>
   </aside>
   <div class="main">
     <header class="topbar">
-      <div class="page-title">{% block page_title %}{% endblock %}</div>
+      <div style="display:flex;align-items:center;min-width:0">
+        <button class="menu-btn" id="menu-btn" onclick="toggleDrawer()" aria-label="菜单">☰</button>
+        <div class="page-title">{% block page_title %}{% endblock %}</div>
+      </div>
       <div class="user-box">
         <span class="user-name" id="top-user-name"></span>
         <span class="user-role" id="top-user-role"></span>
@@ -28,6 +32,21 @@
     </main>
   </div>
 </div>
+
+<script>
+function toggleDrawer() {
+  document.getElementById("sidebar").classList.toggle("open");
+  document.getElementById("drawer-mask").classList.toggle("show");
+}
+function closeDrawer() {
+  document.getElementById("sidebar").classList.remove("open");
+  document.getElementById("drawer-mask").classList.remove("show");
+}
+// 手机端点击导航项后自动收起抽屉
+document.addEventListener("click", function (e) {
+  if (window.innerWidth <= 768 && e.target.closest(".nav-item")) closeDrawer();
+});
+</script>
 
 <script src="/static/js/api.js?v=2"></script>
 <script>

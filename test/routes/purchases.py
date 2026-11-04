@@ -1,13 +1,32 @@
 # -*- coding: utf-8 -*-
-"""采购申报管理模块（3.8）：采购申请、状态跟踪、记录查询"""
-from flask import Blueprint, request, jsonify, g
+"""采购申报管理模块（3.8）：采购申请、状态跟踪、已采购后入库到仪器台账"""
+import re
 
-from models import db, PurchaseRequest
+from flask import Blueprint, request, jsonify, g
+from datetime import datetime
+
+from models import db, PurchaseRequest, Instrument
 from auth import login_required, role_required, log_action
 
 bp = Blueprint("purchases", __name__, url_prefix="/api/purchases")
 
-FLOW = {"草稿": ["已提交"], "已提交": ["已审批", "已驳回"], "已审批": ["已采购"]}
+FLOW = {"草稿": ["已提交"], "已提交": ["已审批", "已驳回"],
+        "已审批": ["已采购"], "已采购": ["已入库"]}
+
+
+def _next_instrument_code():
+    """自动生成仪器编号：找现有 code 最大数字后缀 +1，不足位补零；无编号则从 001 起"""
+    items = Instrument.query.with_entities(Instrument.code).all()
+    max_num = 0
+    for (code,) in items:
+        if not code:
+            continue
+        m = re.search(r"(\d{1,6})$", code)
+        if m:
+            n = int(m.group(1))
+            if n > max_num:
+                max_num = n
+    return f"SW-AUTO-{max_num + 1:04d}"
 
 
 @bp.get("")
@@ -95,3 +114,45 @@ def delete_purchase(pid):
     db.session.commit()
     log_action("删除采购申请", f"#{pid} {p.instrument_name}")
     return jsonify({"code": 0, "msg": "删除成功"})
+
+
+@bp.put("/<int:pid>/receive")
+@role_required("admin", "sysadmin")
+def receive_purchase(pid):
+    """已采购的申报入库到仪器台账（幂等：已入库拒绝重复入库）"""
+    p = db.session.get(PurchaseRequest, pid)
+    if not p:
+        return jsonify({"code": 404, "msg": "采购申请不存在"}), 404
+    if p.status != "已采购":
+        return jsonify({"code": 400, "msg": f"仅「已采购」的申请可入库，当前状态：{p.status}"}), 400
+
+    data = request.get_json(force=True, silent=True) or {}
+    location = (data.get("location") or "").strip()
+    remark_extra = (data.get("remark") or "").strip()
+
+    price = round(float(p.budget or 0) / int(p.quantity or 1), 2) if p.quantity else 0
+    amount = round(price * int(p.quantity or 1), 2)
+    remark = f"来源：采购申报 #{p.id} {p.instrument_name} x{p.quantity}"
+    if remark_extra:
+        remark += f"；{remark_extra}"
+
+    ins = Instrument(
+        code=_next_instrument_code(),
+        name=p.instrument_name,
+        model=p.model or "",
+        quantity=int(p.quantity or 1),
+        price=price,
+        amount=amount,
+        location=location,
+        status="正常",
+        purchase_date=datetime.now().strftime("%Y-%m-%d"),
+        remark=remark,
+    )
+    db.session.add(ins)
+    p.status = "已入库"
+    db.session.commit()
+    log_action("采购入库", f"#{p.id} {p.instrument_name} x{p.quantity} → 仪器台账 #{ins.id}({ins.code})")
+    return jsonify({"code": 0, "msg": "已入库到仪器台账",
+                    "data": {"purchase": p.to_dict(),
+                             "instrument_id": ins.id,
+                             "instrument_code": ins.code}})

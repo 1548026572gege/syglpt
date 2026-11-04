@@ -151,12 +151,14 @@ function pcInitAutocomplete(selectedName) {
 
   input.addEventListener("blur", () => setTimeout(pcAcHide, 150));
 
-  box.addEventListener("mousedown", e => {
+  const pick = e => {
     const el = e.target.closest(".ac-item");
     if (!el) return;
     e.preventDefault();
     pcAcSelect(Number(el.dataset.idx));
-  });
+  };
+  box.addEventListener("mousedown", pick);
+  box.addEventListener("click", pick);
 
   if (selectedName && document.getElementById("pc-code").value) {
     pcHint("已保存的分类代码，可在输入框内手动修改");

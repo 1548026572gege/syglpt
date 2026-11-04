@@ -35,6 +35,7 @@ class Instrument(db.Model):
     __tablename__ = "instruments"
     id = db.Column(db.Integer, primary_key=True)
     state_code = db.Column(db.String(50))           # 国资系统编号
+    subject = db.Column(db.String(50))              # 学科（如：生物、化学、物理）
     code = db.Column(db.String(50), unique=True, nullable=False, index=True)  # 仪器编号
     name = db.Column(db.String(100), nullable=False)
     model = db.Column(db.String(100))               # 型号
@@ -55,6 +56,7 @@ class Instrument(db.Model):
         return {
             "id": self.id,
             "state_code": self.state_code,
+            "subject": self.subject,
             "code": self.code,
             "name": self.name,
             "model": self.model,

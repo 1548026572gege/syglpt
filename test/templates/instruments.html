@@ -53,6 +53,7 @@ async function loadList() {
     { title: "仪器编号", key: "code" },
     { title: "名称", key: "name" },
     { title: "国资编号", key: "state_code", render: r => esc(r.state_code || "-") },
+    { title: "学科", key: "subject", render: r => esc(r.subject || "-") },
     { title: "型号", key: "model", render: r => esc(r.model || "-") },
     { title: "分类", key: "category", render: r => esc(r.category || "-") },
     { title: "数量", key: "quantity" },
@@ -126,6 +127,10 @@ function openEdit(item) {
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1"><label>国资系统编号</label><input type="text" id="ins-state" value="${esc(i.state_code || "")}"></div>
+      <div class="form-group" style="flex:1"><label>学科</label><input type="text" id="ins-subject" list="subj-list" value="${esc(i.subject || "")}">
+        <datalist id="subj-list">
+          <option>生物</option><option>化学</option><option>物理</option><option>地理</option><option>其他</option>
+        </datalist></div>
       <div class="form-group" style="flex:1"><label>型号</label><input type="text" id="ins-model" value="${esc(i.model || "")}"></div>
     </div>
     <div class="form-row">
@@ -144,7 +149,8 @@ function openEdit(item) {
     <div class="form-group"><label>备注</label><input type="text" id="ins-remark" value="${esc(i.remark || "")}"></div>
   `, { onOk: async () => {
     const body = {
-      state_code: formVal("ins-state"), name: formVal("ins-name"), model: formVal("ins-model"),
+      state_code: formVal("ins-state"), subject: formVal("ins-subject"),
+      name: formVal("ins-name"), model: formVal("ins-model"),
       category: formVal("ins-category"), quantity: Number(formVal("ins-qty")) || 1,
       price: formVal("ins-price") === "" ? 0 : Number(formVal("ins-price")),
       location: formVal("ins-location"), status: formVal("ins-status"), purchase_date: formVal("ins-pdate"),

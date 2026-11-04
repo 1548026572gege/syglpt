@@ -48,7 +48,8 @@ def create_instrument():
     if Instrument.query.filter_by(code=data["code"]).first():
         return jsonify({"code": 400, "msg": "仪器编号已存在"}), 400
     ins = Instrument(
-        state_code=data.get("state_code", ""), code=data["code"], name=data["name"],
+        state_code=data.get("state_code", ""), subject=data.get("subject", ""),
+        code=data["code"], name=data["name"],
         model=data.get("model", ""), spec=data.get("spec", ""), unit=data.get("unit", ""),
         category=data.get("category", ""),
         quantity=int(data.get("quantity") or 1),
@@ -71,7 +72,7 @@ def update_instrument(iid):
     if not ins:
         return jsonify({"code": 404, "msg": "仪器不存在"}), 404
     data = request.get_json(force=True, silent=True) or {}
-    for f in ("state_code", "name", "model", "spec", "unit", "category",
+    for f in ("state_code", "subject", "name", "model", "spec", "unit", "category",
               "location", "purchase_date", "remark"):
         if f in data:
             setattr(ins, f, data[f])
@@ -134,7 +135,7 @@ def delete_all_instruments():
     return jsonify({"code": 0, "msg": f"台账已清空，共删除 {n} 台仪器"})
 
 
-HEADERS = ["国资编号", "分类代码", "器材名称", "规格", "单位", "数量", "单价",
+HEADERS = ["国资编号", "学科", "分类代码", "器材名称", "规格", "单位", "数量", "单价",
            "存放位置", "状态", "金额", "备注"]
 
 
@@ -146,8 +147,8 @@ def export_instruments():
     ws.title = "仪器台账"
     ws.append(HEADERS)
     for i in Instrument.query.order_by(Instrument.id).all():
-        ws.append([i.state_code, i.code, i.name, i.spec or i.model, i.unit, i.quantity, i.price,
-                   i.location, i.status, i.amount, i.remark])
+        ws.append([i.state_code, i.subject or "", i.code, i.name, i.spec or i.model, i.unit,
+                   i.quantity, i.price, i.location, i.status, i.amount, i.remark])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -163,9 +164,9 @@ def import_template():
     ws = wb.active
     ws.title = "仪器导入模板"
     ws.append(HEADERS)
-    ws.append(["GZ20240001", "SW-YJ-001", "接种环", "标准型", "个", 30, 15.5,
+    ws.append(["GZ20240001", "生物", "SW-YJ-001", "接种环", "标准型", "个", 30, 15.5,
                "生物实验室A-103", "正常", 465, ""])
-    ws.append(["GZ20240002", "SW-YJ-002", "显微镜", "XSP-02，1600倍", "台", 50, 800,
+    ws.append(["GZ20240002", "生物", "SW-YJ-002", "显微镜", "XSP-02，1600倍", "台", 50, 800,
                "生物实验室A-201", "正常", 40000, ""])
     buf = io.BytesIO()
     wb.save(buf)
@@ -189,9 +190,9 @@ def import_instruments():
     for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if not row or not any(row):
             continue
-        vals = [("" if v is None else str(v).strip()) for v in row] + [""] * (11 - len(row))
-        # 表头：国资编号、分类代码、器材名称、规格、单位、数量、单价、存放位置、状态、金额、备注
-        state_code, code, name, spec, unit, qty, price, location, status, amount, remark = vals[:11]
+        vals = [("" if v is None else str(v).strip()) for v in row] + [""] * (12 - len(row))
+        # 表头：国资编号、学科、分类代码、器材名称、规格、单位、数量、单价、存放位置、状态、金额、备注
+        state_code, subject, code, name, spec, unit, qty, price, location, status, amount, remark = vals[:12]
         # 只以器材名称作为导入依据，名称为空的行才跳过
         if not name:
             skip += 1
@@ -216,7 +217,7 @@ def import_instruments():
             amount = float(amount) if amount else (price * qty)
         except ValueError:
             amount = price * qty
-        db.session.add(Instrument(state_code=state_code, code=new_code, name=name, spec=spec, unit=unit,
+        db.session.add(Instrument(state_code=state_code, subject=subject, code=new_code, name=name, spec=spec, unit=unit,
                                   quantity=qty, price=price,
                                   amount=amount, location=location,
                                   status=status if status in VALID_STATUS else "正常",

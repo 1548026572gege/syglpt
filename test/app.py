@@ -5,12 +5,26 @@
 """
 import os
 from datetime import datetime
+from sqlalchemy import inspect
 
 from flask import Flask, render_template, send_from_directory
 
 from config import Config
 from models import db, User
 from auth import hash_password
+
+
+def _ensure_column(table, column, col_type):
+    """SQLite 运行时补齐缺失列（无 Alembic）"""
+    try:
+        insp = inspect(db.engine)
+        cols = {c["name"] for c in insp.get_columns(table)}
+        if column not in cols:
+            db.session.execute(db.text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"))
+            db.session.commit()
+            print(f"[迁移] 已为 {table} 表新增列 {column}")
+    except Exception as e:
+        print(f"[迁移] 自动补列跳过：{e}")
 
 
 def create_app():
@@ -57,6 +71,8 @@ def create_app():
     # 初始化数据库与种子数据
     with app.app_context():
         db.create_all()
+        # 自动迁移：为已有表补齐新增列（Instrument.subject）
+        _ensure_column("instruments", "subject", "VARCHAR(50)")
         seed_data()
 
     return app

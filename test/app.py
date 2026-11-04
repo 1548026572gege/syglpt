@@ -74,6 +74,7 @@ def create_app():
         # 自动迁移：为已有表补齐新增列（Instrument.subject）
         _ensure_column("instruments", "subject", "VARCHAR(50)")
         seed_data()
+        seed_classes()
 
     return app
 
@@ -93,7 +94,7 @@ def seed_data():
     admin = User(username="admin", password_hash=hash_password(admin_pwd),
                  role="admin", name="系统管理员", phone="13800000001")
     teacher = User(username="teacher", password_hash=hash_password(teacher_pwd),
-                   role="teacher", name="张老师", phone="13800000002", classes="高一(1)班,高一(2)班")
+                   role="teacher", name="张老师", phone="13800000002", classes="2501,2502")
     db.session.add_all([admin, teacher])
     db.session.commit()
     print("[初始化] 已创建初始账号（首次显示，请妥善保存并尽快修改密码）：")
@@ -126,7 +127,15 @@ def seed_data():
                           content="请各班实验小组组长提前10分钟到实验室领取实验材料，注意规范使用显微镜。",
                           sender_id=admin.id))
     db.session.commit()
-    
+
+
+def seed_classes():
+    """首次启动写入默认班级库，之后由管理员在“账号管理 → 班级库”中手动维护"""
+    from models import SchoolClass, DEFAULT_CLASS_NAMES
+    if SchoolClass.query.count() > 0:
+        return
+    db.session.add_all([SchoolClass(name=n, sort_order=i) for i, n in enumerate(DEFAULT_CLASS_NAMES)])
+    db.session.commit()
 
 
 app = create_app()

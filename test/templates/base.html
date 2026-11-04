@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}生物实验室管理平台{% endblock %}</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=3">
+  <link rel="stylesheet" href="/static/css/style.css?v=4">
 </head>
 <body>
 <div class="layout">
@@ -99,10 +99,11 @@ function openProfile() {
     <div class="form-group"><label>账号</label><input type="text" value="${esc(u.username)}" disabled></div>
     <div class="form-group"><label>姓名</label><input type="text" id="pf-name" value="${esc(u.name)}"></div>
     <div class="form-group"><label>联系电话</label><input type="text" id="pf-phone" value="${esc(u.phone || "")}"></div>
-    ${u.role === "teacher" ? `<div class="form-group"><label>任教班级（逗号分隔）</label><input type="text" id="pf-classes" value="${esc(u.classes || "")}"></div>` : ""}
+    ${u.role === "teacher" ? `<div class="form-group"><label>任教班级（由管理员绑定）</label>
+      <div class="class-tags">${(u.classes || "").split(/[,，、]/).map(s => s.trim()).filter(Boolean)
+        .map(c => `<span class="class-tag">${esc(c)}</span>`).join("") || '<span style="color:var(--text-muted)">未绑定</span>'}</div></div>` : ""}
   `, { onOk: async () => {
     const body = { name: formVal("pf-name"), phone: formVal("pf-phone") };
-    if (u.role === "teacher") body.classes = formVal("pf-classes");
     await api("/api/profile", { method: "PUT", body });
     currentUser = await api("/api/profile");
     localStorage.setItem(USER_KEY, JSON.stringify(currentUser));

@@ -367,3 +367,18 @@ class InstrumentCatalog(db.Model):
             "spec": self.spec, "unit": self.unit, "quantity": self.quantity,
             "price": self.price, "requirement": self.requirement, "remark": self.remark,
         }
+
+
+# 班级库默认值：25 级 2501-2520、26 级 2601-2620（每两年由管理员手动更新）
+DEFAULT_CLASS_NAMES = [f"25{i:02d}" for i in range(1, 21)] + [f"26{i:02d}" for i in range(1, 21)]
+
+
+class SchoolClass(db.Model):
+    """班级库：教师可绑定的班级，管理员可手动维护"""
+    __tablename__ = "school_classes"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    sort_order = db.Column(db.Integer, default=0)
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name, "sort_order": self.sort_order}

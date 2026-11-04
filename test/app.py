@@ -73,6 +73,7 @@ def create_app():
         db.create_all()
         # 自动迁移：为已有表补齐新增列（Instrument.subject）
         _ensure_column("instruments", "subject", "VARCHAR(50)")
+        _ensure_column("purchase_requests", "category_code", "VARCHAR(50)")
         seed_data()
         seed_classes()
 

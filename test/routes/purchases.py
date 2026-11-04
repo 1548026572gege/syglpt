@@ -48,7 +48,9 @@ def create_purchase():
     data = request.get_json(force=True, silent=True) or {}
     if not data.get("instrument_name"):
         return jsonify({"code": 400, "msg": "仪器名称不能为空"}), 400
-    p = PurchaseRequest(instrument_name=data["instrument_name"], model=data.get("model", ""),
+    p = PurchaseRequest(instrument_name=data["instrument_name"],
+                        category_code=(data.get("category_code") or "").strip(),
+                        model=data.get("model", ""),
                         quantity=int(data.get("quantity") or 1), budget=float(data.get("budget") or 0),
                         reason=data.get("reason", ""), applicant_id=g.current_user.id,
                         status="已提交" if data.get("submit") else "草稿")
@@ -89,7 +91,7 @@ def update_purchase(pid):
         return jsonify({"code": 403, "msg": "只能编辑自己的申请"}), 403
     if p.status != "草稿":
         return jsonify({"code": 400, "msg": "仅草稿状态可编辑内容"}), 400
-    for f in ("instrument_name", "model", "reason"):
+    for f in ("instrument_name", "category_code", "model", "reason"):
         if f in data:
             setattr(p, f, data[f])
     if "quantity" in data:

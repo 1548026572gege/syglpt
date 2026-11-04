@@ -24,6 +24,7 @@ async function loadList() {
   const list = await api("/api/purchases" + (status ? "?status=" + encodeURIComponent(status) : ""));
   const cols = [
     { title: "仪器名称", key: "instrument_name" },
+    { title: "分类代码", render: r => esc(r.category_code || "-") },
     { title: "型号", render: r => esc(r.model || "-") },
     { title: "数量", key: "quantity" },
     { title: "预算(元)", render: r => r.budget ?? "-" },
@@ -66,7 +67,20 @@ function opBtns(r) {
 function openEdit(item) {
   const p = item || {};
   openModal(item ? "编辑采购申请" : "新建采购申请", `
-    <div class="form-group"><label>仪器名称 <span class="req">*</span></label><input type="text" id="pc-name" value="${esc(p.instrument_name || "")}"></div>
+    <div class="form-row">
+      <div class="form-group" style="flex:2;min-width:220px">
+        <label>仪器名称 <span class="req">*</span></label>
+        <div class="ac-wrap">
+          <input type="text" id="pc-name" autocomplete="off" placeholder="输入关键字搜索配备目录，也可手动输入" value="${esc(p.instrument_name || "")}">
+          <div class="ac-list" id="pc-name-ac"></div>
+        </div>
+        <div class="form-hint" id="pc-name-hint">输入关键字会从仪器配备目录中匹配，选中后自动填充分类代码</div>
+      </div>
+      <div class="form-group" style="flex:1;min-width:150px">
+        <label>分类代码</label>
+        <input type="text" id="pc-code" placeholder="选择仪器后自动填充" value="${esc(p.category_code || "")}">
+      </div>
+    </div>
     <div class="form-row">
       <div class="form-group" style="flex:1"><label>型号</label><input type="text" id="pc-model" value="${esc(p.model || "")}"></div>
       <div class="form-group" style="flex:1"><label>数量</label><input type="number" id="pc-qty" min="1" value="${p.quantity || 1}"></div>
@@ -75,9 +89,10 @@ function openEdit(item) {
     <div class="form-group"><label>申请理由</label><textarea id="pc-reason" placeholder="如：现有显微镜数量不足，无法满足分组实验">${esc(p.reason || "")}</textarea></div>
     <div class="form-group"><label>保存方式</label>
       <select id="pc-submit"><option value="">存为草稿</option><option value="1">直接提交申报</option></select></div>
-  `, { onOk: async () => {
+  `, { onOpen: () => pcInitAutocomplete(p.instrument_name || ""), onOk: async () => {
     const body = {
-      instrument_name: formVal("pc-name"), model: formVal("pc-model"),
+      instrument_name: formVal("pc-name"), category_code: formVal("pc-code"),
+      model: formVal("pc-model"),
       quantity: Number(formVal("pc-qty")) || 1, budget: Number(formVal("pc-budget")) || 0,
       reason: formVal("pc-reason"), submit: !!formVal("pc-submit"),
     };
@@ -89,6 +104,125 @@ function openEdit(item) {
     }
     toast("保存成功"); closeModal(); loadList();
   }});
+}
+
+/* ---------- 仪器名称自动补全（数据来源：仪器配备目录） ---------- */
+let pcAcResults = [];
+let pcAcTimer = null;
+let pcAcSeq = 0;
+let pcAcIndex = -1;
+let pcPickedName = "";
+let pcAutoCode = "";
+
+function pcInitAutocomplete(selectedName) {
+  const input = document.getElementById("pc-name");
+  const box = document.getElementById("pc-name-ac");
+  if (!input || !box) return;
+  pcAcResults = [];
+  pcAcIndex = -1;
+  pcPickedName = selectedName || "";
+  pcAutoCode = "";
+
+  input.addEventListener("input", () => {
+    const kw = input.value.trim();
+    if (pcPickedName && kw !== pcPickedName) {
+      const codeEl = document.getElementById("pc-code");
+      if (codeEl && pcAutoCode && codeEl.value === pcAutoCode) codeEl.value = "";
+      pcPickedName = "";
+      pcAutoCode = "";
+    }
+    clearTimeout(pcAcTimer);
+    if (!kw) { pcAcHide(); return; }
+    pcAcTimer = setTimeout(() => pcAcSearch(kw), 250);
+  });
+
+  input.addEventListener("keydown", e => {
+    if (!box.classList.contains("show")) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      pcAcMove(e.key === "ArrowDown" ? 1 : -1);
+    } else if (e.key === "Enter" && pcAcIndex >= 0) {
+      e.preventDefault();
+      pcAcSelect(pcAcIndex);
+    } else if (e.key === "Escape") {
+      pcAcHide();
+    }
+  });
+
+  input.addEventListener("blur", () => setTimeout(pcAcHide, 150));
+
+  box.addEventListener("mousedown", e => {
+    const el = e.target.closest(".ac-item");
+    if (!el) return;
+    e.preventDefault();
+    pcAcSelect(Number(el.dataset.idx));
+  });
+
+  if (selectedName && document.getElementById("pc-code").value) {
+    pcHint("已保存的分类代码，可在输入框内手动修改");
+  }
+}
+
+async function pcAcSearch(kw) {
+  const seq = ++pcAcSeq;
+  try {
+    const data = await api("/api/catalog?kw=" + encodeURIComponent(kw));
+    if (seq !== pcAcSeq) return;
+    pcAcResults = (data.list || []).slice(0, 8);
+    pcAcIndex = pcAcResults.length ? 0 : -1;
+    pcAcRender();
+  } catch (e) {
+    if (seq === pcAcSeq) pcAcHide();
+  }
+}
+
+function pcAcRender() {
+  const box = document.getElementById("pc-name-ac");
+  if (!box) return;
+  if (!pcAcResults.length) {
+    box.innerHTML = `<div class="ac-empty">配备目录中未找到匹配项，可继续手动输入</div>`;
+  } else {
+    box.innerHTML = pcAcResults.map((it, i) => `
+      <div class="ac-item ${i === pcAcIndex ? "active" : ""}" data-idx="${i}">
+        <div class="ac-name">${esc(it.name)}</div>
+        <div class="ac-meta">${esc([it.subject, it.spec].filter(Boolean).join(" · ") || "仪器配备目录")}</div>
+        <div class="ac-code">分类代码：${esc(it.code || "未填写")}</div>
+      </div>`).join("");
+  }
+  box.classList.add("show");
+}
+
+function pcAcMove(step) {
+  if (!pcAcResults.length) return;
+  pcAcIndex = (pcAcIndex + step + pcAcResults.length) % pcAcResults.length;
+  pcAcRender();
+  const active = document.querySelector("#pc-name-ac .ac-item.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
+}
+
+function pcAcSelect(i) {
+  const it = pcAcResults[i];
+  if (!it) return;
+  const nameEl = document.getElementById("pc-name");
+  const codeEl = document.getElementById("pc-code");
+  nameEl.value = it.name || "";
+  codeEl.value = it.code || "";
+  pcPickedName = nameEl.value;
+  pcAutoCode = codeEl.value;
+  pcAcHide();
+  pcHint(it.code ? "已匹配配备目录，分类代码已自动填充" : "该目录条目未填写分类代码，可手动补充");
+  nameEl.focus();
+}
+
+function pcAcHide() {
+  const box = document.getElementById("pc-name-ac");
+  if (box) box.classList.remove("show");
+  pcAcIndex = -1;
+}
+
+function pcHint(text) {
+  const el = document.getElementById("pc-name-hint");
+  if (el) el.textContent = text;
 }
 
 async function changeStatus(id, status) {

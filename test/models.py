@@ -222,6 +222,7 @@ class PurchaseRequest(db.Model):
     __tablename__ = "purchase_requests"
     id = db.Column(db.Integer, primary_key=True)
     instrument_name = db.Column(db.String(100), nullable=False)
+    category_code = db.Column(db.String(50))                  # 分类代码（可从配备目录自动补全）
     model = db.Column(db.String(100))
     quantity = db.Column(db.Integer, default=1)
     budget = db.Column(db.Float, default=0)                   # 预算（元）
@@ -237,6 +238,7 @@ class PurchaseRequest(db.Model):
         return {
             "id": self.id,
             "instrument_name": self.instrument_name,
+            "category_code": self.category_code,
             "model": self.model,
             "quantity": self.quantity,
             "budget": self.budget,

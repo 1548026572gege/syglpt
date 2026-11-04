@@ -73,9 +73,15 @@ def create_app():
         db.create_all()
         # 自动迁移：为已有表补齐新增列（Instrument.subject）
         _ensure_column("instruments", "subject", "VARCHAR(50)")
+        _ensure_column("instruments", "category_code", "VARCHAR(50)")
         _ensure_column("purchase_requests", "category_code", "VARCHAR(50)")
         seed_data()
         seed_classes()
+        # 历史台账没有分类代码时，用原仪器编号回填，保证页面继续有值显示
+        db.session.execute(db.text(
+            "UPDATE instruments SET category_code = code "
+            "WHERE category_code IS NULL OR category_code = ''"))
+        db.session.commit()
 
     return app
 

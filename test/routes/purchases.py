@@ -140,6 +140,7 @@ def receive_purchase(pid):
 
     ins = Instrument(
         code=_next_instrument_code(),
+        category_code=p.category_code or "",
         name=p.instrument_name,
         model=p.model or "",
         quantity=int(p.quantity or 1),

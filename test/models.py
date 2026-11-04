@@ -36,7 +36,8 @@ class Instrument(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     state_code = db.Column(db.String(50))           # 国资系统编号
     subject = db.Column(db.String(50))              # 学科（如：生物、化学、物理）
-    code = db.Column(db.String(50), unique=True, nullable=False, index=True)  # 仪器编号
+    code = db.Column(db.String(50), unique=True, nullable=False, index=True)  # 仪器编号（内部唯一标识）
+    category_code = db.Column(db.String(50))        # 分类代码（对外展示，可对应配备目录）
     name = db.Column(db.String(100), nullable=False)
     model = db.Column(db.String(100))               # 型号
     spec = db.Column(db.String(200))                # 规格
@@ -58,6 +59,7 @@ class Instrument(db.Model):
             "state_code": self.state_code,
             "subject": self.subject,
             "code": self.code,
+            "category_code": self.category_code,
             "name": self.name,
             "model": self.model,
             "spec": self.spec,

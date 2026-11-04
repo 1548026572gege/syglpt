@@ -3,7 +3,7 @@
 {% block content %}
 <div class="card">
   <div class="toolbar">
-    <input type="text" id="kw" placeholder="搜索编号/名称/国资编号" style="width:200px">
+    <input type="text" id="kw" placeholder="搜索分类代码/名称/国资编号" style="width:200px">
     <select id="f-category"><option value="">全部分类</option></select>
     <select id="f-status">
       <option value="">全部状态</option>
@@ -50,7 +50,7 @@ async function loadList() {
     title: `<input type="checkbox" onchange="selAll(this)" title="全选">`,
     render: r => `<input type="checkbox" class="row-sel" value="${r.id}" onchange="selCount()">` });
   cols.push(
-    { title: "仪器编号", key: "code" },
+    { title: "分类代码", render: r => esc(r.category_code || "-") },
     { title: "名称", key: "name" },
     { title: "国资编号", key: "state_code", render: r => esc(r.state_code || "-") },
     { title: "学科", key: "subject", render: r => esc(r.subject || "-") },
@@ -120,8 +120,8 @@ function openEdit(item) {
     .map(s => `<option ${i.status === s ? "selected" : ""}>${s}</option>`).join("");
   openModal(item ? "编辑仪器" : "新增仪器", `
     <div class="form-row">
-      <div class="form-group" style="flex:1"><label>仪器编号 <span class="req">*</span></label>
-        <input type="text" id="ins-code" value="${esc(i.code || "")}" ${item ? "disabled" : ""}></div>
+      <div class="form-group" style="flex:1"><label>分类代码 <span class="req">*</span></label>
+        <input type="text" id="ins-catcode" value="${esc(i.category_code || i.code || "")}"></div>
       <div class="form-group" style="flex:1"><label>名称 <span class="req">*</span></label>
         <input type="text" id="ins-name" value="${esc(i.name || "")}"></div>
     </div>
@@ -150,6 +150,7 @@ function openEdit(item) {
   `, { onOk: async () => {
     const body = {
       state_code: formVal("ins-state"), subject: formVal("ins-subject"),
+      category_code: formVal("ins-catcode"),
       name: formVal("ins-name"), model: formVal("ins-model"),
       category: formVal("ins-category"), quantity: Number(formVal("ins-qty")) || 1,
       price: formVal("ins-price") === "" ? 0 : Number(formVal("ins-price")),
@@ -159,7 +160,6 @@ function openEdit(item) {
     if (item) {
       await api(`/api/instruments/${item.id}`, { method: "PUT", body });
     } else {
-      body.code = formVal("ins-code");
       await api("/api/instruments", { method: "POST", body });
     }
     toast("保存成功"); closeModal(); loadList();

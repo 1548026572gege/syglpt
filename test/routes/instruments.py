@@ -13,6 +13,19 @@ bp = Blueprint("instruments", __name__, url_prefix="/api/instruments")
 VALID_STATUS = {"正常", "借出", "维修中", "损耗", "报废"}
 
 
+def _next_instrument_code():
+    """生成内部唯一仪器编号（分类代码可重复，内部编号不可重复）"""
+    max_seq = 0
+    for (code,) in Instrument.query.with_entities(Instrument.code).all():
+        if code and code.startswith("SW-AUTO-"):
+            try:
+                max_seq = max(max_seq, int(code.rsplit("-", 1)[1]))
+            except (IndexError, ValueError):
+                continue
+    return f"SW-AUTO-{max_seq + 1:04d}"
+
+
+
 @bp.get("")
 @login_required
 def list_instruments():
@@ -22,6 +35,7 @@ def list_instruments():
     q = Instrument.query
     if kw:
         q = q.filter(db.or_(Instrument.name.contains(kw), Instrument.code.contains(kw),
+                            Instrument.category_code.contains(kw),
                             Instrument.state_code.contains(kw)))
     if category:
         q = q.filter(Instrument.category == category)
@@ -43,13 +57,16 @@ def list_instruments():
 @role_required("admin", "sysadmin")
 def create_instrument():
     data = request.get_json(force=True, silent=True) or {}
-    if not data.get("code") or not data.get("name"):
-        return jsonify({"code": 400, "msg": "仪器编号和名称不能为空"}), 400
-    if Instrument.query.filter_by(code=data["code"]).first():
-        return jsonify({"code": 400, "msg": "仪器编号已存在"}), 400
+    category_code = (data.get("category_code") or data.get("code") or "").strip()
+    if not category_code or not data.get("name"):
+        return jsonify({"code": 400, "msg": "分类代码和名称不能为空"}), 400
+    # 旧接口可能仍传 code 作为唯一编号；未传时自动生成内部编号
+    code = (data.get("code") or "").strip() or _next_instrument_code()
+    if Instrument.query.filter_by(code=code).first():
+        return jsonify({"code": 400, "msg": "仪器内部编号已存在"}), 400
     ins = Instrument(
         state_code=data.get("state_code", ""), subject=data.get("subject", ""),
-        code=data["code"], name=data["name"],
+        code=code, category_code=category_code, name=data["name"],
         model=data.get("model", ""), spec=data.get("spec", ""), unit=data.get("unit", ""),
         category=data.get("category", ""),
         quantity=int(data.get("quantity") or 1),
@@ -72,7 +89,7 @@ def update_instrument(iid):
     if not ins:
         return jsonify({"code": 404, "msg": "仪器不存在"}), 404
     data = request.get_json(force=True, silent=True) or {}
-    for f in ("state_code", "subject", "name", "model", "spec", "unit", "category",
+    for f in ("state_code", "subject", "category_code", "name", "model", "spec", "unit", "category",
               "location", "purchase_date", "remark"):
         if f in data:
             setattr(ins, f, data[f])
@@ -147,8 +164,9 @@ def export_instruments():
     ws.title = "仪器台账"
     ws.append(HEADERS)
     for i in Instrument.query.order_by(Instrument.id).all():
-        ws.append([i.state_code, i.subject or "", i.code, i.name, i.spec or i.model, i.unit,
-                   i.quantity, i.price, i.location, i.status, i.amount, i.remark])
+        ws.append([i.state_code, i.subject or "", i.category_code or i.code, i.name,
+                   i.spec or i.model, i.unit, i.quantity, i.price, i.location, i.status,
+                   i.amount, i.remark])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -217,7 +235,9 @@ def import_instruments():
             amount = float(amount) if amount else (price * qty)
         except ValueError:
             amount = price * qty
-        db.session.add(Instrument(state_code=state_code, subject=subject, code=new_code, name=name, spec=spec, unit=unit,
+        db.session.add(Instrument(state_code=state_code, subject=subject, code=new_code,
+                                  category_code=code or None,
+                                  name=name, spec=spec, unit=unit,
                                   quantity=qty, price=price,
                                   amount=amount, location=location,
                                   status=status if status in VALID_STATUS else "正常",

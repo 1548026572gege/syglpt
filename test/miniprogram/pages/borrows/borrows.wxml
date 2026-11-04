@@ -21,7 +21,7 @@
   </view>
   <view class="muted" style="margin-top:10rpx;">用途：{{item.purpose || '-'}}</view>
   <view class="muted" style="margin-top:6rpx;">
-    借出：{{item.borrow_time || '-'}} ｜ 归还：{{item.return_time || '预计 ' + (item.expect_return_time || '-')}}
+    借出：{{item.borrow_text}} ｜ 归还：{{item.return_text}}
     <text wx:if="{{item.overdue}}" class="badge badge-red">已逾期</text>
   </view>
 </view>

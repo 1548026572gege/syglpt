@@ -28,7 +28,7 @@
     <text style="font-weight:bold;">{{item.experiment_name}}</text>
     <text class="badge {{item.badge}}">{{item.status}}</text>
   </view>
-  <view class="muted" style="margin-top:10rpx;">{{item.lab_name}} ｜ {{item.start_time}} ~ {{item.end_time}}</view>
+  <view class="muted" style="margin-top:10rpx;">{{item.lab_name}} ｜ {{item.start_text}} ~ {{item.end_text}}</view>
   <view class="muted" style="margin-top:6rpx;">{{item.class_name || '-'}} ｜ {{item.student_count || '-'}}人 / {{item.group_count || '-'}}组</view>
   <view class="muted" wx:if="{{item.review_comment}}" style="margin-top:6rpx;">审核意见：{{item.review_comment}}</view>
   <button wx:if="{{item.status === '待审核' || item.status === '已通过'}}" class="btn-plain" size="mini"

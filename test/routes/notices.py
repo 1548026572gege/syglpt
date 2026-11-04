@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify, g, send_file
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, Border, Side
 from openpyxl.worksheet.pagebreak import Break
+from openpyxl.worksheet.properties import PageSetupProperties
 
 from models import db, Notice
 from auth import login_required, role_required, log_action
@@ -149,6 +150,10 @@ def export_notices():
     ws.page_setup.paperSize = 9  # A4
     ws.page_margins.left, ws.page_margins.right = 0.71, 0.41
     ws.page_margins.top, ws.page_margins.bottom = 0.75, 0.75
+    # 表格总宽略超 A4 可打印宽度，按一页宽缩放，避免每联被横向切成两页
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
 
     row = 1
     for n in items:

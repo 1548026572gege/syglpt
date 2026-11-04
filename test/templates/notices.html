@@ -50,10 +50,10 @@
     renderTable("list-box", cols, notices);
   }
 
-  // 时间值：datetime-local 输入用 "YYYY-MM-DDTHH:mm"，存储统一为 "YYYY-MM-DD HH:mm"
-  function toLocalInput(v) {
-    v = (v || "").replace(" ", "T");
-    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v) ? v.slice(0, 16) : "";
+  // 实验时间只取年月日：兼容历史 "YYYY-MM-DD HH:mm" 数据，编辑时只保留日期
+  function toDateInput(v) {
+    const m = (v || "").replace("T", " ").match(/^\d{4}-\d{2}-\d{2}/);
+    return m ? m[0] : "";
   }
 
   function openEdit(item) {
@@ -78,7 +78,7 @@
     </div>
     <div class="form-row">
       <div class="form-group" style="flex:1"><label>实验时间（自选）</label>
-        <input type="datetime-local" id="nt-time" value="${toLocalInput(n.experiment_time)}"></div>
+        <input type="date" id="nt-time" value="${toDateInput(n.experiment_time)}"></div>
       <div class="form-group" style="flex:1"><label>地点</label>
         <input type="text" id="nt-lab" value="${esc(n.lab_name || "")}" placeholder="如：生物实验室A"></div>
     </div>
@@ -91,7 +91,7 @@
         const body = {
           subject: formVal("nt-subject"), title: formVal("nt-title"),
           classes: formVal("nt-classes"), teacher_name: formVal("nt-teacher"),
-          experiment_time: formVal("nt-time") ? formVal("nt-time").replace("T", " ") : "",
+          experiment_time: formVal("nt-time"),
           lab_name: formVal("nt-lab"), content: formVal("nt-content"), instruments: formVal("nt-ins"),
         };
         if (!body.subject || !body.title || !body.classes || !body.teacher_name) {

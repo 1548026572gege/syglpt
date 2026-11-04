@@ -1,4 +1,4 @@
-const { request, badgeClass } = require("../../utils/api");
+const { request, badgeClass, formatDateTime } = require("../../utils/api");
 Page({
   data: { list: [], instruments: [], insIndex: 0, showForm: false,
           form: { quantity: "1", expect_return_time: "", purpose: "" } },
@@ -9,7 +9,12 @@ Page({
         request("/api/borrows"), request("/api/instruments")
       ]);
       this.setData({
-        list: list.map(b => ({ ...b, badge: badgeClass(b.status) })),
+        list: list.map(b => ({
+          ...b, badge: badgeClass(b.status),
+          borrow_text: formatDateTime(b.borrow_time) || "-",
+          return_text: b.return_time ? formatDateTime(b.return_time)
+            : (b.expect_return_time ? "预计 " + formatDateTime(b.expect_return_time) : "-")
+        })),
         instruments: insData.list.filter(i => i.status === "正常" && i.quantity > 0)
       });
     } catch (e) {}

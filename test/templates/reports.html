@@ -59,7 +59,7 @@ function reportFormHtml(r, reservations) {
   return `
     <div class="form-group"><label>关联预约</label>
       <select id="rp-rv"><option value="">不关联</option>
-        ${reservations.map(v => `<option value="${v.id}" ${r.reservation_id === v.id ? "selected" : ""}>${esc(v.experiment_name)}（${esc(v.start_time)}）</option>`).join("")}</select></div>
+        ${reservations.map(v => `<option value="${v.id}" ${r.reservation_id === v.id ? "selected" : ""}>${esc(v.experiment_name)}（${esc(fmtDateTime(v.start_time))}）</option>`).join("")}</select></div>
     <div class="form-group"><label>实验名称 <span class="req">*</span></label><input type="text" id="rp-name" value="${esc(r.experiment_name || "")}"></div>
     <div class="form-row">
       <div class="form-group" style="flex:1"><label>实际使用时间</label><input type="datetime-local" id="rp-time" value="${r.actual_time ? r.actual_time.replace(" ", "T") : ""}"></div>

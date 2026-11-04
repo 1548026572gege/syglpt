@@ -107,6 +107,14 @@ function esc(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+/* 时间显示：2026-11-07 08:00 → 2026 年 11 月 7 日 08:00 */
+function fmtDateTime(v) {
+  const m = (v || "").trim().replace("T", " ").match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}:\d{2}))?/);
+  if (!m) return v || "";
+  const s = `${m[1]} 年 ${+m[2]} 月 ${+m[3]} 日`;
+  return m[4] ? `${s} ${m[4]}` : s;
+}
+
 /* blob 转 base64（安卓 App 保存导出文件用） */
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {

@@ -1,8 +1,13 @@
-const { request } = require("../../utils/api");
+const { request, formatDateTime } = require("../../utils/api");
 Page({
   data: { list: [] },
   onShow() { this.load(); },
   async load() {
-    try { this.setData({ list: await request("/api/notices") }); } catch (e) {}
+    try {
+      const list = await request("/api/notices");
+      this.setData({ list: list.map(n => ({
+        ...n, time_text: formatDateTime(n.experiment_time), created_text: formatDateTime(n.created_at)
+      })) });
+    } catch (e) {}
   }
 });

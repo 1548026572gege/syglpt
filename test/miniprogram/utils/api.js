@@ -42,4 +42,12 @@ function badgeClass(status) {
   return map[status] || "";
 }
 
-module.exports = { request, badgeClass };
+/* 时间显示：2026-11-07 08:00 → 2026 年 11 月 7 日 08:00；只有日期时省略时分 */
+function formatDateTime(v) {
+  const m = (v || "").trim().replace("T", " ").match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\s+(\d{1,2}:\d{2}))?/);
+  if (!m) return v || "";
+  const s = m[1] + " 年 " + Number(m[2]) + " 月 " + Number(m[3]) + " 日";
+  return m[4] ? s + " " + m[4] : s;
+}
+
+module.exports = { request, badgeClass, formatDateTime };

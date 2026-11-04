@@ -1,4 +1,4 @@
-const { request, badgeClass } = require("../../utils/api");
+const { request, badgeClass, formatDateTime } = require("../../utils/api");
 Page({
   data: { list: [], showForm: false, labs: ["生物实验室A", "生物实验室B", "生物准备室"],
           form: { experiment_name: "", lab_index: 0, class_name: "", student_count: "", group_count: "",
@@ -7,7 +7,10 @@ Page({
   async load() {
     try {
       const list = await request("/api/reservations");
-      this.setData({ list: list.map(r => ({ ...r, badge: badgeClass(r.status) })) });
+      this.setData({ list: list.map(r => ({
+        ...r, badge: badgeClass(r.status),
+        start_text: formatDateTime(r.start_time), end_text: formatDateTime(r.end_time)
+      })) });
     } catch (e) {}
   },
   toggleForm() { this.setData({ showForm: !this.data.showForm }); },

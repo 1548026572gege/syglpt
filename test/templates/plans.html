@@ -5,6 +5,8 @@
   <div class="toolbar">
     <span style="color:var(--text-muted);font-size:13px">按《实验计划书》模板：年级 / 实验名称 / 类别 / 实验地点 / 计划时间</span>
     <div class="spacer"></div>
+    <button class="btn btn-outline" onclick="document.getElementById('plan-file').click()">⬆ 导入 Excel</button>
+    <input type="file" id="plan-file" accept=".xlsx,.xlsm" style="display:none" onchange="importExcel(this)">
     <button class="btn btn-outline" onclick="downloadFile('/api/plans/export')">⬇ 导出 Excel</button>
     <button class="btn btn-primary" onclick="openEdit()">＋ 新增实验计划</button>
   </div>
@@ -47,6 +49,8 @@
     const catOpts = CATEGORIES.map(c => `<option ${p.category === c ? "selected" : ""}>${c}</option>`).join("");
     const locOpts = LOCATIONS.map(l => `<option ${p.location === l ? "selected" : ""}>${l}</option>`).join("");
     openModal(item ? "编辑实验计划" : "新增实验计划", `
+    <div class="form-group"><label>从初中实验名单选择（可选，自动填入实验名称）</label>
+      <select onchange="fillPlanExperiment(this)">${experimentOptions(p.experiment_name)}</select></div>
     <div class="form-row">
       <div class="form-group" style="flex:1"><label>年级 <span class="req">*</span></label>
         <input type="text" id="pl-grade" list="grade-list" value="${esc(p.grade || "")}" placeholder="如：初一">
@@ -75,6 +79,32 @@
     else await api("/api/plans", { method: "POST", body });
     toast("保存成功"); closeModal(); loadList();
   }});
+  }
+
+  function fillPlanExperiment(sel) {
+    const idx = Number(sel.value);
+    if (!idx || !BIOLOGY_EXPERIMENTS[idx - 1]) return;
+    document.getElementById("pl-name").value = BIOLOGY_EXPERIMENTS[idx - 1].name;
+  }
+
+  async function importExcel(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    const resp = await fetch("/api/plans/import", {
+      method: "POST", headers: { "Authorization": "Bearer " + getToken() }, body: fd
+    });
+    const data = await resp.json();
+    input.value = "";
+    if (!resp.ok || data.code !== 0) { toast(data.msg || "导入失败", "error"); return; }
+    const r = data.data;
+    toast(`导入完成：成功 ${r.imported} 条，跳过 ${r.skipped} 条`);
+    if (r.errors && r.errors.length) {
+      openModal("导入结果", `<p>成功 ${r.imported} 条，跳过 ${r.skipped} 条。</p>
+        <p style="color:#dc2626">${r.errors.map(esc).join("<br>")}</p>`);
+    }
+    loadList();
   }
 
   function del(id) {

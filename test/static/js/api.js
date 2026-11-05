@@ -131,8 +131,13 @@ async function downloadFile(url) {
   if (!resp.ok) { toast("下载失败", "error"); return; }
   const dispo = resp.headers.get("Content-Disposition") || "";
   let fname = "download.xlsx";
-  const m = dispo.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
-  if (m) fname = decodeURIComponent(m[1].replace(/"/g, "").trim());
+  const star = dispo.match(/filename\*=UTF-8''([^;]+)/i);
+  if (star) {
+    fname = decodeURIComponent(star[1].trim());
+  } else {
+    const m = dispo.match(/filename="?([^";]+)"?/i);
+    if (m) fname = m[1].trim();
+  }
   const blob = await resp.blob();
 
   // 安卓 App：WebView 无法保存 blob 文件，交给原生 DownloadBridge 保存并打开

@@ -326,6 +326,34 @@ class Notice(db.Model):
         }
 
 
+class ExperimentPlan(db.Model):
+    """实验计划表：年级、实验名称、类别（演示/分组）、地点、计划时间"""
+    __tablename__ = "experiment_plans"
+    id = db.Column(db.Integer, primary_key=True)
+    grade = db.Column(db.String(50), nullable=False)             # 年级
+    experiment_name = db.Column(db.String(200), nullable=False)  # 实验名称
+    category = db.Column(db.String(20), default="演示")          # 演示/分组
+    location = db.Column(db.String(50), default="生物实验室1")   # 生物实验室1/2/教室
+    planned_time = db.Column(db.String(50))                      # 计划时间（YYYY-MM-DD）
+    creator_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    creator = db.relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "grade": self.grade,
+            "experiment_name": self.experiment_name,
+            "category": self.category,
+            "location": self.location,
+            "planned_time": self.planned_time,
+            "creator_id": self.creator_id,
+            "creator_name": self.creator.name if self.creator else "",
+            "created_at": self.created_at.strftime("%Y-%m-%d %H:%M") if self.created_at else None,
+        }
+
+
 class OperationLog(db.Model):
     """操作日志表：记录敏感操作（设计文档 7.3）"""
     __tablename__ = "operation_logs"

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block page_title %}实验计划{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="toolbar">
+    <span style="color:var(--text-muted);font-size:13px">按《实验计划书》模板：年级 / 实验名称 / 类别 / 实验地点 / 计划时间</span>
+    <div class="spacer"></div>
+    <button class="btn btn-outline" onclick="downloadFile('/api/plans/export')">⬇ 导出 Excel</button>
+    <button class="btn btn-primary" onclick="openEdit()">＋ 新增实验计划</button>
+  </div>
+  <div id="list-box"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const CATEGORIES = ["演示", "分组"];
+  const LOCATIONS = ["生物实验室1", "生物实验室2", "教室"];
+  const GRADES = ["初一", "初二", "初三", "高一", "高二", "高三"];
+
+  async function onPageReady() {
+    await loadList();
+  }
+
+  const canEditPlan = r => isAdmin() || r.creator_id === getUser().id;
+
+  async function loadList() {
+    const plans = await api("/api/plans");
+    const cols = [
+      { title: "年级", key: "grade" },
+      { title: "实验名称", key: "experiment_name" },
+      { title: "类别", render: r => `<span class="badge ${r.category === "分组" ? "badge-purple" : "badge-blue"}">${esc(r.category || "-")}</span>` },
+      { title: "实验地点", key: "location" },
+      { title: "计划时间", render: r => esc(fmtDateTime(r.planned_time) || "-") },
+      { title: "创建人", render: r => esc(r.creator_name || "-") },
+      {
+        title: "操作", render: r => canEditPlan(r) ? `
+      <button class="btn btn-outline btn-sm" onclick='openEdit(${JSON.stringify(r)})'>编辑</button>
+      <button class="btn btn-danger btn-sm" onclick="del(${r.id})">删除</button>` : "-"
+      },
+    ];
+    renderTable("list-box", cols, plans);
+  }
+
+  function openEdit(item) {
+    const p = item || {};
+    const catOpts = CATEGORIES.map(c => `<option ${p.category === c ? "selected" : ""}>${c}</option>`).join("");
+    const locOpts = LOCATIONS.map(l => `<option ${p.location === l ? "selected" : ""}>${l}</option>`).join("");
+    openModal(item ? "编辑实验计划" : "新增实验计划", `
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>年级 <span class="req">*</span></label>
+        <input type="text" id="pl-grade" list="grade-list" value="${esc(p.grade || "")}" placeholder="如：初一">
+        <datalist id="grade-list">${GRADES.map(g => `<option>${g}</option>`).join("")}</datalist></div>
+      <div class="form-group" style="flex:2"><label>实验名称 <span class="req">*</span></label>
+        <input type="text" id="pl-name" value="${esc(p.experiment_name || "")}"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1"><label>类别 <span class="req">*</span></label>
+        <select id="pl-category">${catOpts}</select></div>
+      <div class="form-group" style="flex:1"><label>实验地点 <span class="req">*</span></label>
+        <select id="pl-location">${locOpts}</select></div>
+      <div class="form-group" style="flex:1"><label>计划时间</label>
+        <input type="date" id="pl-time" value="${esc(p.planned_time || "")}"></div>
+    </div>
+  `, { onOk: async () => {
+    const body = {
+      grade: formVal("pl-grade").trim(), experiment_name: formVal("pl-name").trim(),
+      category: formVal("pl-category"), location: formVal("pl-location"),
+      planned_time: formVal("pl-time"),
+    };
+    if (!body.grade || !body.experiment_name) {
+      toast("年级和实验名称不能为空", "error"); return;
+    }
+    if (item) await api(`/api/plans/${item.id}`, { method: "PUT", body });
+    else await api("/api/plans", { method: "POST", body });
+    toast("保存成功"); closeModal(); loadList();
+  }});
+  }
+
+  function del(id) {
+    openModal("确认删除", `<p>确定删除该实验计划吗？</p>`, {
+      onOk: async () => {
+        await api(`/api/plans/${id}`, { method: "DELETE" });
+        toast("删除成功"); closeModal(); loadList();
+      }
+    });
+  }
+</script>
+{% endblock %}

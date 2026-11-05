@@ -46,9 +46,10 @@ def create_app():
     from routes.notices import bp as notices_bp
     from routes.catalog import bp as catalog_bp
     from routes.stats import bp as stats_bp
+    from routes.plans import bp as plans_bp
 
     for bp in (auth_bp, instruments_bp, reservations_bp, borrows_bp, repairs_bp,
-               losses_bp, purchases_bp, reports_bp, notices_bp, catalog_bp, stats_bp):
+               losses_bp, purchases_bp, reports_bp, notices_bp, catalog_bp, stats_bp, plans_bp):
         app.register_blueprint(bp)
 
     # ---------------- 页面路由（HTML 管理后台） ----------------
@@ -59,7 +60,7 @@ def create_app():
     @app.route("/page/<name>")
     def page(name):
         allowed = {"dashboard", "instruments", "reservations", "borrows", "repairs",
-                   "losses", "purchases", "reports", "notices", "catalog", "users", "stats", "logs"}
+                   "losses", "purchases", "reports", "notices", "catalog", "users", "stats", "logs", "plans"}
         if name in allowed:
             return render_template(f"{name}.html")
         return "页面不存在", 404

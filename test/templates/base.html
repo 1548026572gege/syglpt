@@ -92,6 +92,12 @@ let currentUser = null;
   }
   document.getElementById("nav").innerHTML = html;
   if (typeof onPageReady === "function") onPageReady(currentUser);
+  // 在线状态心跳：每分钟刷新最后活跃时间
+  setInterval(() => {
+    fetch("/api/heartbeat", {
+      method: "POST", headers: { "Authorization": "Bearer " + getToken() }
+    }).catch(() => {});
+  }, 60000);
 })();
 
 function openProfile() {

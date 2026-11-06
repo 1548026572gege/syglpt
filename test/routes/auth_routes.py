@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """用户管理模块：登录、个人信息、密码、账号管理（3.1）"""
 import re
+from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify, g
 
@@ -12,6 +13,9 @@ bp = Blueprint("auth", __name__, url_prefix="/api")
 
 # 内置账号：不允许删除，避免系统失去管理员
 PROTECTED_USERNAMES = {"admin"}
+
+# 最后活跃时间在此范围内的账号视为在线（前端每分钟心跳）
+ONLINE_WINDOW = timedelta(minutes=3)
 
 # 任教班级分隔符：兼容历史数据的逗号、顿号与中文逗号
 CLASS_SEPARATORS = re.compile(r"[,，、]")
@@ -68,6 +72,13 @@ def profile():
     return jsonify({"code": 0, "data": g.current_user.to_dict()})
 
 
+@bp.post("/heartbeat")
+@login_required
+def heartbeat():
+    """前端定时心跳；login_required 已刷新最后活跃时间"""
+    return jsonify({"code": 0})
+
+
 @bp.put("/profile")
 @login_required
 def update_profile():
@@ -103,7 +114,13 @@ def list_users():
     if kw:
         q = q.filter(db.or_(User.username.contains(kw), User.name.contains(kw)))
     users = q.order_by(User.id).all()
-    return jsonify({"code": 0, "data": [u.to_dict() for u in users]})
+    now = datetime.now()
+    data = []
+    for u in users:
+        item = u.to_dict()
+        item["online"] = bool(u.last_active_at and (now - u.last_active_at) <= ONLINE_WINDOW)
+        data.append(item)
+    return jsonify({"code": 0, "data": data})
 
 
 @bp.post("/users")

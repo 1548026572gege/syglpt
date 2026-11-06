@@ -16,6 +16,7 @@ class User(db.Model):
     name = db.Column(db.String(50), nullable=False)
     phone = db.Column(db.String(20))
     classes = db.Column(db.String(200))  # 任教班级，逗号分隔
+    last_active_at = db.Column(db.DateTime)  # 最后活跃时间，用于在线状态展示
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     def to_dict(self):
@@ -26,6 +27,7 @@ class User(db.Model):
             "name": self.name,
             "phone": self.phone,
             "classes": self.classes,
+            "last_active_at": self.last_active_at.strftime("%Y-%m-%d %H:%M:%S") if self.last_active_at else None,
             "created_at": self.created_at.strftime("%Y-%m-%d %H:%M:%S") if self.created_at else None,
         }
 

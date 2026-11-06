@@ -76,6 +76,7 @@ def create_app():
         _ensure_column("instruments", "subject", "VARCHAR(50)")
         _ensure_column("instruments", "category_code", "VARCHAR(50)")
         _ensure_column("purchase_requests", "category_code", "VARCHAR(50)")
+        _ensure_column("users", "last_active_at", "DATETIME")
         seed_data()
         seed_classes()
         # 历史台账没有分类代码时，用原仪器编号回填，保证页面继续有值显示

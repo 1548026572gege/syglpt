@@ -53,8 +53,24 @@ def login_required(f):
         if not user:
             return jsonify({"code": 401, "msg": "用户不存在"}), 401
         g.current_user = user
+        _touch_active(user)
         return f(*args, **kwargs)
     return wrapper
+
+
+ACTIVE_TOUCH_SECONDS = 30
+
+
+def _touch_active(user):
+    """节流更新最后活跃时间，供管理员查看在线状态"""
+    now = datetime.now()
+    if user.last_active_at and (now - user.last_active_at).total_seconds() < ACTIVE_TOUCH_SECONDS:
+        return
+    try:
+        user.last_active_at = now
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def role_required(*roles):

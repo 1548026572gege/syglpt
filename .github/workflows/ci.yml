@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e:
+    name: 端到端冒烟（Flask test_client）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: test/requirements.txt
+      - name: 安装依赖
+        run: pip install -r test/requirements.txt
+      - name: 运行端到端冒烟
+        run: python test/tests/e2e_smoke.py
+
+  bench:
+    name: 大数据量性能（1 万条）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: test/requirements.txt
+      - name: 安装依赖
+        run: pip install -r test/requirements.txt
+      - name: 运行性能测试
+        run: python test/tests/bench_large_data.py
+
+  ui:
+    name: 浏览器 UI（Playwright）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: test/requirements.txt
+      - name: 安装依赖
+        run: pip install -r test/requirements.txt playwright
+      - name: 安装 Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: 运行浏览器回归
+        run: python test/tests/ui_playwright.py

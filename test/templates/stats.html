@@ -3,14 +3,14 @@
 {% block content %}
 <div class="stat-grid" id="stat-grid"></div>
 <div class="chart-grid">
-  <div class="chart-box"><h4>仪器状态分布</h4><div id="c-ins-status"></div></div>
-  <div class="chart-box"><h4>仪器分类分布</h4><div id="c-ins-cat"></div></div>
-  <div class="chart-box"><h4>仪器借用次数 TOP10（使用率）</h4><div id="c-borrow"></div></div>
-  <div class="chart-box"><h4>各实验室预约频次</h4><div id="c-lab"></div></div>
-  <div class="chart-box"><h4>预约状态分布</h4><div id="c-rv"></div></div>
-  <div class="chart-box"><h4>维修状态统计</h4><div id="c-repair"></div></div>
-  <div class="chart-box"><h4>仪器损耗统计</h4><div id="c-loss"></div></div>
-  <div class="chart-box"><h4>采购需求汇总</h4><div id="c-purchase"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>仪器状态分布</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('instrument_status')">导出</button></div><div id="c-ins-status"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>仪器分类分布</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('instrument_category')">导出</button></div><div id="c-ins-cat"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>仪器借用次数 TOP10（使用率）</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('top_borrowed')">导出</button></div><div id="c-borrow"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>各实验室预约频次</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('reservation_by_lab')">导出</button></div><div id="c-lab"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>预约状态分布</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('reservation_status')">导出</button></div><div id="c-rv"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>维修状态统计</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('repair_status')">导出</button></div><div id="c-repair"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>仪器损耗统计</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('loss_by_instrument')">导出</button></div><div id="c-loss"></div></div>
+  <div class="chart-box"><div class="chart-head"><h4>采购需求汇总</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('purchase_summary')">导出</button></div><div id="c-purchase"></div></div>
 </div>
 {% endblock %}
 
@@ -26,6 +26,10 @@ function renderBars(id, rows, unit = "") {
       <div class="bar-track"><div class="bar-fill" style="width:${Math.round(r.value / max * 100)}%"></div></div>
       <span class="bar-val">${r.value}${unit}</span>
     </div>`).join("");
+}
+
+function exportCategory(type) {
+  downloadFile("/api/stats/export?type=" + encodeURIComponent(type));
 }
 
 async function onPageReady() {

@@ -156,6 +156,8 @@ textarea { resize: vertical; min-height: 72px; }
 .chart-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 18px; }
 .chart-box { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
 .chart-box h4 { font-size: 14px; margin-bottom: 14px; color: var(--text-muted); }
+.chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+.chart-head h4 { margin-bottom: 0; }
 .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .bar-row .bar-label { width: 90px; font-size: 12.5px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar-row .bar-track { flex: 1; background: #f3f4f6; border-radius: 5px; height: 18px; overflow: hidden; }

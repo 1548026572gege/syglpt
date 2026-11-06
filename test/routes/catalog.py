@@ -12,6 +12,7 @@ bp = Blueprint("catalog", __name__, url_prefix="/api/catalog")
 
 # 表头列名 → 字段（自动去空格匹配；兼容"必配/选配"双列打√ 与 "必配或者选配"单列文本两种格式）
 COL_ALIASES = {
+    "subject": ("学科", "科目"),
     "name": ("器材名称",),
     "category": ("器材类型/学习主题",),
     "code": ("分类代码", "编码"),
@@ -85,16 +86,16 @@ def list_catalog():
 @bp.get("/import-template")
 @login_required
 def import_template():
-    """下载仪器配备目录导入模板（标准表头：分类代码/器材名称/规格/单位/数量/单价/必配或者选配/金额/备注）"""
+    """下载仪器配备目录导入模板（标准表头：学科/分类代码/器材名称/规格/单位/数量/单价/必配或者选配/金额/备注）"""
     wb = Workbook()
     ws = wb.active
     ws.title = "仪器配备目录"
-    headers = ["分类代码", "器材名称", "规格", "单位", "数量", "单价",
+    headers = ["学科", "分类代码", "器材名称", "规格", "单位", "数量", "单价",
                "必配或者选配", "金额", "备注"]
     ws.append(headers)
-    ws.append(["20201000101", "液晶投影机", "3LCD显示技术，亮度≥3300流明", "台", 1, 12800, "必配", "", ""])
-    ws.append(["20201001101", "银幕", "白塑幕，亮度系数≥0.85", "幅", 1, 2500, "选配", "", ""])
-    for i, w in enumerate([16, 24, 40, 8, 8, 10, 14, 10, 20], 1):
+    ws.append(["生物", "20201000101", "液晶投影机", "3LCD显示技术，亮度≥3300流明", "台", 1, 12800, "必配", "", ""])
+    ws.append(["生物", "20201001101", "银幕", "白塑幕，亮度系数≥0.85", "幅", 1, 2500, "选配", "", ""])
+    for i, w in enumerate([10, 16, 24, 40, 8, 8, 10, 14, 10, 20], 1):
         ws.column_dimensions[chr(64 + i)].width = w
     buf = io.BytesIO()
     wb.save(buf)
@@ -106,7 +107,7 @@ def import_template():
 @bp.post("/import")
 @role_required("admin", "sysadmin")
 def import_catalog():
-    """导入配备目录 Excel（支持多学科 sheet，sheet 名作为学科名；同名学科数据先清空再导入）"""
+    """导入配备目录 Excel（优先取“学科”列，缺少学科列时用 sheet 名；同名学科数据先清空再导入）"""
     f = request.files.get("file")
     if not f or not f.filename.endswith((".xlsx", ".xlsm")):
         return jsonify({"code": 400, "msg": "请上传 xlsx 格式文件"}), 400
@@ -114,21 +115,23 @@ def import_catalog():
         wb = load_workbook(io.BytesIO(f.read()), data_only=True)
     except Exception:
         return jsonify({"code": 400, "msg": "文件解析失败"}), 400
-    total, details = 0, []
+    total, details, counts, cleared = 0, [], {}, set()
     for ws in wb.worksheets:
         rows = list(ws.iter_rows(values_only=True))
         hri, cols = _match_header(rows)
         if hri is None:
             details.append(f"{ws.title}：未找到含'器材名称'的表头行，已跳过")
             continue
-        subject = ws.title.strip()
-        InstrumentCatalog.query.filter_by(subject=subject).delete()
-        n = 0
+        sheet_subject = ws.title.strip() or "未命名"
         last_cat = ""
         for row in rows[hri + 1:]:
             name = _cell(row, cols.get("name"))
             if not name or not str(name).strip():
                 continue
+            subject = str(_cell(row, cols.get("subject")) or "").strip() or sheet_subject
+            if subject not in cleared:
+                InstrumentCatalog.query.filter_by(subject=subject).delete()
+                cleared.add(subject)
             cat = _cell(row, cols.get("category"))
             if cat:
                 last_cat = cat
@@ -159,10 +162,11 @@ def import_catalog():
                 price=float(price) if str(price).replace(".", "").isdigit() else None,
                 requirement=req or None,
                 remark=_cell(row, cols.get("remark")) or None))
-            n += 1
-        total += n
-        details.append(f"{subject}：导入 {n} 条")
+            counts[subject] = counts.get(subject, 0) + 1
+            total += 1
     db.session.commit()
+    for subject, n in counts.items():
+        details.append(f"{subject}：导入 {n} 条")
     log_action("导入仪器配备目录", f"共{total}条：" + "；".join(details))
     return jsonify({"code": 0, "msg": f"导入完成，共 {total} 条", "data": {"details": details}})
 

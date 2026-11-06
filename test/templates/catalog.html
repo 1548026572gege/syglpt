@@ -68,7 +68,7 @@
 
   function openImport() {
     openModal("导入配备目录", `
-      <p style="margin-bottom:10px;color:var(--text-muted)">上传《仪器配备目录》Excel。支持标准模板，也支持原版配备目录（多学科工作表，工作表名作学科名）。系统按表头列名自动识别。</p>
+      <p style="margin-bottom:10px;color:var(--text-muted)">上传《仪器配备目录》Excel。模板含「学科」列，按该列归类；没有学科列时使用工作表名作为学科。系统按表头列名自动识别。</p>
     <p style="margin-bottom:12px"><a href="javascript:downloadFile('/api/catalog/import-template')" style="color:var(--primary)">⬇ 下载导入模板</a></p>
       <input type="file" id="cat-file" accept=".xlsx,.xlsm">
     `, { onOk: async () => {

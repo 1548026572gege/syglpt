@@ -5,8 +5,7 @@
   <div class="toolbar">
     <span style="color:var(--text-muted);font-size:13px">按《实验计划书》模板：年级 / 实验名称 / 类别 / 实验地点 / 计划时间</span>
     <div class="spacer"></div>
-    <button class="btn btn-outline" onclick="document.getElementById('plan-file').click()">⬆ 导入 Excel</button>
-    <input type="file" id="plan-file" accept=".xlsx,.xlsm" style="display:none" onchange="importExcel(this)">
+    <button class="btn btn-outline" onclick="openImport()">⬆ 导入 Excel</button>
     <button class="btn btn-outline" onclick="downloadFile('/api/plans/export')">⬇ 导出 Excel</button>
     <button class="btn btn-primary" onclick="openEdit()">＋ 新增实验计划</button>
   </div>
@@ -87,18 +86,29 @@
     document.getElementById("pl-name").value = BIOLOGY_EXPERIMENTS[idx - 1].name;
   }
 
-  async function importExcel(input) {
-    const file = input.files[0];
-    if (!file) return;
+  function openImport() {
+    openModal("导入实验计划", `
+      <p style="margin-bottom:12px;color:var(--text-muted);font-size:13px">
+        请按模板表头填写：年级 / 实验名称 / 类别 / 实验地点 / 计划时间。
+        可先<a href="javascript:downloadFile('/api/plans/export')" style="color:var(--primary)">导出 Excel</a>参考当前数据格式。
+      </p>
+      <input type="file" id="plan-file" accept=".xlsx,.xlsm">
+    `, { onOk: importExcel });
+  }
+
+  async function importExcel() {
+    const input = document.getElementById("plan-file");
+    const file = input && input.files[0];
+    if (!file) { toast("请选择要导入的 Excel 文件", "error"); return; }
     const fd = new FormData();
     fd.append("file", file);
     const resp = await fetch("/api/plans/import", {
       method: "POST", headers: { "Authorization": "Bearer " + getToken() }, body: fd
     });
     const data = await resp.json();
-    input.value = "";
     if (!resp.ok || data.code !== 0) { toast(data.msg || "导入失败", "error"); return; }
     const r = data.data;
+    closeModal();
     toast(`导入完成：成功 ${r.imported} 条，跳过 ${r.skipped} 条`);
     if (r.errors && r.errors.length) {
       openModal("导入结果", `<p>成功 ${r.imported} 条，跳过 ${r.skipped} 条。</p>

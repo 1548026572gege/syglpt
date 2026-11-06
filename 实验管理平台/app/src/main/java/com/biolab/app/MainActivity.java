@@ -2,6 +2,7 @@ package com.biolab.app;
 
 import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
+import android.content.ClipData;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -15,6 +16,7 @@ import android.view.View;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -33,10 +35,13 @@ import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final int FILE_CHOOSER_REQUEST = 1001;
+
     private WebView webView;
     private ProgressBar progressBar;
     private SharedPreferences prefs;
     private String serverUrl;
+    private ValueCallback<Uri[]> fileChooserCallback;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -131,6 +136,23 @@ public class MainActivity extends AppCompatActivity {
                 super.onProgressChanged(view, newProgress);
                 progressBar.setProgress(newProgress);
             }
+
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> filePathCallback,
+                                             FileChooserParams fileChooserParams) {
+                // 网页中的 <input type="file">（如 Excel 导入）需要 WebView 主动拉起系统文件选择器
+                if (fileChooserCallback != null) fileChooserCallback.onReceiveValue(null);
+                fileChooserCallback = filePathCallback;
+                try {
+                    Intent intent = fileChooserParams.createIntent();
+                    startActivityForResult(intent, FILE_CHOOSER_REQUEST);
+                    return true;
+                } catch (Exception e) {
+                    fileChooserCallback = null;
+                    Toast.makeText(MainActivity.this, "无法打开文件选择器", Toast.LENGTH_LONG).show();
+                    return false;
+                }
+            }
         });
 
         // 长按菜单（复制等）
@@ -182,6 +204,30 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadUrl(String url) {
         webView.loadUrl(url);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER_REQUEST) {
+            if (fileChooserCallback != null) {
+                Uri[] results = null;
+                if (resultCode == RESULT_OK && data != null) {
+                    ClipData clip = data.getClipData();
+                    if (clip != null && clip.getItemCount() > 0) {
+                        results = new Uri[clip.getItemCount()];
+                        for (int i = 0; i < clip.getItemCount(); i++) {
+                            results[i] = clip.getItemAt(i).getUri();
+                        }
+                    } else if (data.getData() != null) {
+                        results = new Uri[]{data.getData()};
+                    }
+                }
+                fileChooserCallback.onReceiveValue(results);
+                fileChooserCallback = null;
+            }
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override

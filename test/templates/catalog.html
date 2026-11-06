@@ -81,7 +81,10 @@
       if (data.code !== 0) { toast(data.msg || "导入失败", "error"); return; }
       closeModal();
       const d = (data.data.details || []).map(x => `<li>${esc(x)}</li>`).join("");
-      openModal("导入结果", `<p>${esc(data.msg)}</p><ul style="margin-top:10px;font-size:13px;color:var(--text-muted)">${d}</ul>`,
+      const errs = (data.data.errors || []).map(x => `<li>${esc(x)}</li>`).join("");
+      openModal("导入结果", `<p>${esc(data.msg)}</p>` +
+        (d ? `<ul style="margin-top:10px;font-size:13px;color:var(--text-muted)">${d}</ul>` : "") +
+        (errs ? `<p style="margin-top:10px;font-size:13px;color:#dc2626">${errs}</p>` : ""),
         { hideFooter: true });
       loadList();
     }});

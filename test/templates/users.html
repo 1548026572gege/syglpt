@@ -58,7 +58,7 @@ async function loadList() {
     { title: "账号", key: "username" },
     { title: "姓名", key: "name" },
     { title: "角色", render: r => `<span class="badge badge-${r.role === "teacher" ? "blue" : "green"}">${ROLE_NAME[r.role] || r.role}</span>` },
-    ...(showOnline ? [{ title: "在线状态", render: r => r.online
+    ...(showOnline ? [{ title: "在线状态（最近3分钟活跃）", render: r => r.online
         ? '<span class="badge badge-green">● 在线</span>'
         : '<span class="badge badge-red">● 离线</span>' }] : []),
     { title: "联系电话", render: r => esc(r.phone || "-") },

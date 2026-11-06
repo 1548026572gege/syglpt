@@ -27,6 +27,13 @@ async function api(url, options = {}) {
 }
 
 function logout() {
+  const t = getToken();
+  if (t) {
+    // 退出时立即上报离线，keepalive 保证跳转后请求仍能完成
+    fetch("/api/offline", {
+      method: "POST", headers: { "Authorization": "Bearer " + t }, keepalive: true
+    }).catch(() => {});
+  }
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   location.href = "/";

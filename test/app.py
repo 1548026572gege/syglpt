@@ -72,6 +72,21 @@ def create_app():
     # 初始化数据库与种子数据
     with app.app_context():
         db.create_all()
+        # SQLite 并发优化：WAL 模式 + 30 秒写锁等待，降低多 worker 下 database is locked
+        if db.engine.dialect.name == "sqlite":
+            from sqlalchemy import event, text
+
+            @event.listens_for(db.engine, "connect")
+            def _set_sqlite_pragma(dbapi_conn, _record):
+                cur = dbapi_conn.cursor()
+                cur.execute("PRAGMA journal_mode=WAL")
+                cur.execute("PRAGMA synchronous=NORMAL")
+                cur.execute("PRAGMA busy_timeout=30000")
+                cur.close()
+
+            db.session.execute(text("PRAGMA journal_mode=WAL"))
+            db.session.execute(text("PRAGMA busy_timeout=30000"))
+            db.session.commit()
         # 自动迁移：为已有表补齐新增列（Instrument.subject）
         _ensure_column("instruments", "subject", "VARCHAR(50)")
         _ensure_column("instruments", "category_code", "VARCHAR(50)")

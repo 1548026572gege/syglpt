@@ -115,18 +115,21 @@ def import_catalog():
         wb = load_workbook(io.BytesIO(f.read()), data_only=True)
     except Exception:
         return jsonify({"code": 400, "msg": "文件解析失败"}), 400
-    total, details, counts, cleared = 0, [], {}, set()
+    total, details, errors, counts, cleared = 0, [], [], {}, set()
     for ws in wb.worksheets:
         rows = list(ws.iter_rows(values_only=True))
         hri, cols = _match_header(rows)
         if hri is None:
-            details.append(f"{ws.title}：未找到含'器材名称'的表头行，已跳过")
+            msg = f"{ws.title}：未找到含'器材名称'的表头行，已跳过"
+            details.append(msg)
+            errors.append(msg)
             continue
         sheet_subject = ws.title.strip() or "未命名"
         last_cat = ""
-        for row in rows[hri + 1:]:
+        for rowno, row in enumerate(rows[hri + 1:], start=hri + 2):
             name = _cell(row, cols.get("name"))
             if not name or not str(name).strip():
+                errors.append(f"第{rowno}行：器材名称为空，已跳过")
                 continue
             subject = str(_cell(row, cols.get("subject")) or "").strip() or sheet_subject
             if subject not in cleared:
@@ -150,6 +153,10 @@ def import_catalog():
                 req = "选配"
             qty = _cell(row, cols.get("quantity"))
             price = _cell(row, cols.get("price"))
+            if qty and not str(qty).strip().isdigit():
+                errors.append(f"第{rowno}行：数量「{qty}」不是整数，已置空")
+            if price and not str(price).replace(".", "").isdigit():
+                errors.append(f"第{rowno}行：单价「{price}」不是数字，已置空")
             db.session.add(InstrumentCatalog(
                 subject=subject,
                 category=last_cat or None,
@@ -168,7 +175,8 @@ def import_catalog():
     for subject, n in counts.items():
         details.append(f"{subject}：导入 {n} 条")
     log_action("导入仪器配备目录", f"共{total}条：" + "；".join(details))
-    return jsonify({"code": 0, "msg": f"导入完成，共 {total} 条", "data": {"details": details}})
+    return jsonify({"code": 0, "msg": f"导入完成，共 {total} 条",
+                    "data": {"imported": total, "details": details, "errors": errors[:20]}})
 
 
 @bp.delete("/<int:cid>")

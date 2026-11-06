@@ -81,6 +81,15 @@ def heartbeat():
     return jsonify({"code": 0})
 
 
+@bp.post("/offline")
+@login_required
+def offline():
+    """退出登录时立即置为离线，不必等待 3 分钟活跃窗口过期"""
+    g.current_user.last_active_at = None
+    db.session.commit()
+    return jsonify({"code": 0})
+
+
 @bp.put("/profile")
 @login_required
 def update_profile():

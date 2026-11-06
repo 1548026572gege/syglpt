@@ -2,6 +2,15 @@
 {% block page_title %}统计报表{% endblock %}
 {% block content %}
 <div class="stat-grid" id="stat-grid"></div>
+<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:var(--text-muted)">
+  <span>导出筛选</span>
+  <input type="date" id="exp-start" title="开始日期">
+  <span>至</span>
+  <input type="date" id="exp-end" title="结束日期">
+  <select id="exp-subject"><option value="">全部学科</option></select>
+  <button class="btn btn-outline btn-sm" onclick="resetExpFilter()">重置</button>
+  <span>以上条件仅作用于各图表的「导出」</span>
+</div>
 <div class="chart-grid">
   <div class="chart-box"><div class="chart-head"><h4>仪器状态分布</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('instrument_status')">导出</button></div><div id="c-ins-status"></div></div>
   <div class="chart-box"><div class="chart-head"><h4>仪器分类分布</h4><button class="btn btn-outline btn-sm" onclick="exportCategory('instrument_category')">导出</button></div><div id="c-ins-cat"></div></div>
@@ -29,7 +38,20 @@ function renderBars(id, rows, unit = "") {
 }
 
 function exportCategory(type) {
-  downloadFile("/api/stats/export?type=" + encodeURIComponent(type));
+  const q = new URLSearchParams({ type });
+  const s = document.getElementById("exp-start").value;
+  const e = document.getElementById("exp-end").value;
+  const sub = document.getElementById("exp-subject").value;
+  if (s) q.set("start_date", s);
+  if (e) q.set("end_date", e);
+  if (sub) q.set("subject", sub);
+  downloadFile("/api/stats/export?" + q.toString());
+}
+
+function resetExpFilter() {
+  document.getElementById("exp-start").value = "";
+  document.getElementById("exp-end").value = "";
+  document.getElementById("exp-subject").value = "";
 }
 
 async function onPageReady() {
@@ -42,6 +64,9 @@ async function onPageReady() {
   ].map(([l, v, c]) => `<div class="stat-card ${c}"><div class="stat-label">${l}</div><div class="stat-value">${v}</div></div>`).join("");
 
   const d = await api("/api/stats/report");
+  const subSel = document.getElementById("exp-subject");
+  subSel.innerHTML = `<option value="">全部学科</option>` +
+    (d.subjects || []).map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
   renderBars("c-ins-status", d.instrument_status);
   renderBars("c-ins-cat", d.instrument_category);
   renderBars("c-borrow", d.top_borrowed, " 次");

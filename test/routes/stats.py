@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """统计报表模块（3.10）：仪器使用率、预约频次、维修/损耗统计、采购汇总；操作日志"""
 import io
+from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, g, request, send_file
 from openpyxl import Workbook
@@ -51,37 +52,75 @@ def report():
     return jsonify({"code": 0, "data": _report_data()})
 
 
-def _report_data():
-    """汇总统计报表数据，供页面展示与分类导出共用"""
+def _report_data(start=None, end=None, subject=None):
+    """汇总统计报表数据，供页面展示与分类导出共用；可按日期区间和学科筛选"""
+    ins_cond = []
+    if subject:
+        ins_cond.append(Instrument.subject == subject)
+    if start:
+        ins_cond.append(Instrument.created_at >= start)
+    if end:
+        ins_cond.append(Instrument.created_at < end + timedelta(days=1))
+    borrow_cond = []
+    if start:
+        borrow_cond.append(BorrowRecord.borrow_time >= start)
+    if end:
+        borrow_cond.append(BorrowRecord.borrow_time < end + timedelta(days=1))
+    rv_cond = []
+    if start:
+        rv_cond.append(Reservation.start_time >= start)
+    if end:
+        rv_cond.append(Reservation.start_time < end + timedelta(days=1))
+    repair_cond = []
+    if start:
+        repair_cond.append(RepairRecord.report_time >= start)
+    if end:
+        repair_cond.append(RepairRecord.report_time < end + timedelta(days=1))
+    loss_cond = []
+    if start:
+        loss_cond.append(LossRecord.loss_time >= start)
+    if end:
+        loss_cond.append(LossRecord.loss_time < end + timedelta(days=1))
+    purchase_cond = []
+    if start:
+        purchase_cond.append(PurchaseRequest.created_at >= start)
+    if end:
+        purchase_cond.append(PurchaseRequest.created_at < end + timedelta(days=1))
+
     # 仪器状态分布
     status_rows = db.session.query(Instrument.status, db.func.count(Instrument.id)) \
-        .group_by(Instrument.status).all()
+        .filter(*ins_cond).group_by(Instrument.status).all()
     # 仪器分类分布
     cat_rows = db.session.query(Instrument.category, db.func.count(Instrument.id)) \
-        .group_by(Instrument.category).all()
+        .filter(*ins_cond).group_by(Instrument.category).all()
     # 借用次数最多的仪器（使用率参考）
     borrow_rows = db.session.query(Instrument.name, db.func.count(BorrowRecord.id)) \
         .join(BorrowRecord, BorrowRecord.instrument_id == Instrument.id) \
+        .filter(*ins_cond, *borrow_cond) \
         .group_by(Instrument.id).order_by(db.func.count(BorrowRecord.id).desc()).limit(10).all()
     # 预约频次（按实验室）
     lab_rows = db.session.query(Reservation.lab_name, db.func.count(Reservation.id)) \
-        .group_by(Reservation.lab_name).all()
+        .filter(*rv_cond).group_by(Reservation.lab_name).all()
     # 预约状态分布
     rv_rows = db.session.query(Reservation.status, db.func.count(Reservation.id)) \
-        .group_by(Reservation.status).all()
+        .filter(*rv_cond).group_by(Reservation.status).all()
     # 维修统计
     repair_rows = db.session.query(RepairRecord.status, db.func.count(RepairRecord.id)) \
-        .group_by(RepairRecord.status).all()
-    repair_cost = db.session.query(db.func.coalesce(db.func.sum(RepairRecord.cost), 0)).scalar()
+        .filter(*repair_cond).group_by(RepairRecord.status).all()
+    repair_cost = db.session.query(db.func.coalesce(db.func.sum(RepairRecord.cost), 0)) \
+        .filter(*repair_cond).scalar()
     # 损耗统计（按仪器）
     loss_rows = db.session.query(Instrument.name, db.func.sum(LossRecord.quantity)) \
         .join(LossRecord, LossRecord.instrument_id == Instrument.id) \
-        .group_by(Instrument.id).all()
+        .filter(*ins_cond, *loss_cond).group_by(Instrument.id).all()
     # 采购汇总
     purchase_rows = db.session.query(PurchaseRequest.status, db.func.count(PurchaseRequest.id),
                                      db.func.coalesce(db.func.sum(PurchaseRequest.budget), 0)) \
-        .group_by(PurchaseRequest.status).all()
+        .filter(*purchase_cond).group_by(PurchaseRequest.status).all()
+    subjects = [s for (s,) in db.session.query(Instrument.subject).filter(
+        Instrument.subject.isnot(None), Instrument.subject != "").distinct().all()]
     return {
+        "subjects": subjects,
         "instrument_status": [{"name": s or "未知", "value": c} for s, c in status_rows],
         "instrument_category": [{"name": c0 or "未分类", "value": c1} for c0, c1 in cat_rows],
         "top_borrowed": [{"name": n, "value": c} for n, c in borrow_rows],
@@ -124,8 +163,19 @@ def export_report():
     category = request.args.get("type", "").strip()
     if category not in EXPORT_CATEGORIES:
         return jsonify({"code": 400, "msg": "不支持的导出分类"}), 400
+    # 可选筛选：start_date/end_date（YYYY-MM-DD）、subject（学科）
+    start_s = request.args.get("start_date", "").strip()
+    end_s = request.args.get("end_date", "").strip()
+    try:
+        start = datetime.strptime(start_s, "%Y-%m-%d") if start_s else None
+        end = datetime.strptime(end_s, "%Y-%m-%d") if end_s else None
+    except ValueError:
+        return jsonify({"code": 400, "msg": "日期格式应为 YYYY-MM-DD"}), 400
+    if start and end and start > end:
+        return jsonify({"code": 400, "msg": "开始日期不能晚于结束日期"}), 400
+    subject = request.args.get("subject", "").strip() or None
     title, headers = EXPORT_CATEGORIES[category]
-    data = _report_data()
+    data = _report_data(start, end, subject)
     wb = Workbook()
     ws = wb.active
     ws.title = title[:31]
@@ -139,7 +189,9 @@ def export_report():
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    log_action("分类导出统计报表", title)
+    log_action("分类导出统计报表",
+               title + (f"（{start_s or '不限'}~{end_s or '不限'}，学科:{subject or '全部'}）"
+                        if start_s or end_s or subject else ""))
     return send_file(buf, as_attachment=True, download_name=f"统计报表_{title}.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 

@@ -17,6 +17,7 @@ class User(db.Model):
     phone = db.Column(db.String(20))
     classes = db.Column(db.String(200))  # 任教班级，逗号分隔
     last_active_at = db.Column(db.DateTime)  # 最后活跃时间，用于在线状态展示
+    token_version = db.Column(db.Integer, default=0, nullable=False)  # 令牌版本，改密后旧 Token 失效
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     def to_dict(self):

@@ -126,7 +126,8 @@ function openChangePwd() {
     <div class="form-group"><label>确认新密码</label><input type="password" id="pw-new2"></div>
   `, { onOk: async () => {
     if (formVal("pw-new") !== formVal("pw-new2")) { toast("两次输入的新密码不一致", "error"); return; }
-    await api("/api/password", { method: "PUT", body: { old_password: formVal("pw-old"), new_password: formVal("pw-new") } });
+    const res = await api("/api/password", { method: "PUT", body: { old_password: formVal("pw-old"), new_password: formVal("pw-new") } });
+    if (res && res.token) localStorage.setItem(TOKEN_KEY, res.token);
     toast("密码修改成功"); closeModal();
   }});
 }

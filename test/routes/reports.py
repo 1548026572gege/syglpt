@@ -13,6 +13,19 @@ from auth import login_required, role_required, log_action
 
 bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
+# 附件文件头签名：扩展名与真实内容需一致（16MB 大小限制由 MAX_CONTENT_LENGTH 控制）
+ATTACHMENT_SIGNATURES = {
+    ".pdf": (b"%PDF",),
+    ".png": (b"\x89PNG\r\n\x1a\n",),
+    ".jpg": (b"\xff\xd8\xff",),
+    ".jpeg": (b"\xff\xd8\xff",),
+    ".doc": (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",),
+    ".xls": (b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1",),
+    ".docx": (b"PK\x03\x04",),
+    ".xlsx": (b"PK\x03\x04",),
+    ".zip": (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"),
+}
+
 
 def _parse_dt(s):
     if not s:
@@ -121,6 +134,14 @@ def upload_attachment(rid):
     ext = os.path.splitext(f.filename)[1].lower()
     if ext not in (".pdf", ".doc", ".docx", ".xls", ".xlsx", ".png", ".jpg", ".jpeg", ".zip"):
         return jsonify({"code": 400, "msg": "不支持的文件类型"}), 400
+    # 校验文件头，防止仅改扩展名上传非真实文件
+    head = f.stream.read(8)
+    f.stream.seek(0)
+    if not head:
+        return jsonify({"code": 400, "msg": "文件内容为空"}), 400
+    signatures = ATTACHMENT_SIGNATURES.get(ext, ())
+    if not any(head.startswith(sig) for sig in signatures):
+        return jsonify({"code": 400, "msg": "文件内容与扩展名不匹配，请上传真实文件"}), 400
     fname = f"report_{rid}_{int(datetime.now().timestamp())}{ext}"
     f.save(os.path.join(current_app.config["UPLOAD_FOLDER"], secure_filename(fname)))
     r.attachment = fname

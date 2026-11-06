@@ -26,6 +26,7 @@ def generate_token(user: User) -> str:
         "uid": user.id,
         "role": user.role,
         "name": user.name,
+        "tv": user.token_version or 0,
         "exp": datetime.utcnow() + timedelta(hours=current_app.config["JWT_EXPIRE_HOURS"]),
         "iat": datetime.utcnow(),
     }
@@ -52,6 +53,9 @@ def login_required(f):
         user = db.session.get(User, payload["uid"])
         if not user:
             return jsonify({"code": 401, "msg": "用户不存在"}), 401
+        # 密码修改后令牌版本递增，旧 Token 立即失效
+        if payload.get("tv", 0) != (user.token_version or 0):
+            return jsonify({"code": 401, "msg": "登录已失效，请重新登录"}), 401
         g.current_user = user
         _touch_active(user)
         return f(*args, **kwargs)

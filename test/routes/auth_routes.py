@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify, g
 
-from models import db, User, SchoolClass
+from models import (db, User, SchoolClass, Reservation, BorrowRecord, RepairRecord,
+                    LossRecord, PurchaseRequest, ExperimentReport, Notice,
+                    ExperimentPlan, OperationLog)
 from auth import (hash_password, check_password, generate_token,
                   login_required, role_required, log_action)
 
@@ -100,8 +102,12 @@ def change_password():
     if not check_password(old, g.current_user.password_hash):
         return jsonify({"code": 400, "msg": "原密码错误"}), 400
     g.current_user.password_hash = hash_password(new)
+    # 令牌版本递增：其他设备上的旧 Token 立即失效，当前会话返回新 Token 保持登录
+    g.current_user.token_version = (g.current_user.token_version or 0) + 1
     db.session.commit()
-    return jsonify({"code": 0, "msg": "密码修改成功"})
+    log_action("修改密码", f"账号:{g.current_user.username}")
+    return jsonify({"code": 0, "msg": "密码修改成功",
+                    "data": {"token": generate_token(g.current_user)}})
 
 
 # ---------------- 账号管理（管理员） ----------------
@@ -159,6 +165,8 @@ def update_user(uid):
         u.classes = ""
     if data.get("password"):
         u.password_hash = hash_password(data["password"])
+        # 管理员重置密码后，该账号已登录的旧 Token 全部失效
+        u.token_version = (u.token_version or 0) + 1
     db.session.commit()
     log_action("修改用户", f"账号:{u.username}")
     return jsonify({"code": 0, "msg": "保存成功", "data": u.to_dict()})
@@ -174,6 +182,27 @@ def delete_user(uid):
         return jsonify({"code": 404, "msg": "用户不存在"}), 404
     if u.username in PROTECTED_USERNAMES:
         return jsonify({"code": 400, "msg": "内置管理员账号 admin 不能删除"}), 400
+    # 存在关联业务数据时禁止删除，避免预约/报告/采购等记录失去归属
+    related = []
+    for model, cond, label in (
+        (Reservation, (Reservation.teacher_id == uid) | (Reservation.reviewer_id == uid), "实验预约"),
+        (BorrowRecord, BorrowRecord.teacher_id == uid, "仪器借用"),
+        (RepairRecord, RepairRecord.reporter_id == uid, "仪器维修"),
+        (LossRecord, LossRecord.handler_id == uid, "仪器损耗"),
+        (PurchaseRequest, PurchaseRequest.applicant_id == uid, "采购申请"),
+        (ExperimentReport, ExperimentReport.teacher_id == uid, "实验报告"),
+        (Notice, Notice.sender_id == uid, "实验通知单"),
+        (ExperimentPlan, ExperimentPlan.creator_id == uid, "实验计划"),
+    ):
+        n = model.query.filter(cond).count()
+        if n:
+            related.append(f"{label} {n} 条")
+    if related:
+        return jsonify({"code": 400,
+                        "msg": "该账号存在关联业务数据（" + "、".join(related) +
+                               "），无法删除；请先处理相关数据或保留账号"}), 400
+    # 历史操作日志保留审计内容，解除与账号的关联
+    OperationLog.query.filter_by(user_id=uid).update({OperationLog.user_id: None})
     db.session.delete(u)
     db.session.commit()
     log_action("删除用户", f"账号:{u.username}")

@@ -22,8 +22,10 @@ let usersCache = [];
 async function onPageReady() {
   document.getElementById("kw").addEventListener("keydown", e => { if (e.key === "Enter") loadList(); });
   await Promise.all([loadList(), getClassPool()]);
-  // 每分钟刷新一次在线状态
-  setInterval(() => { if (!document.getElementById("modal-mask")) loadList(); }, 60000);
+  // 仅 admin 账号需要定时刷新在线状态
+  if (currentUser && currentUser.username === "admin") {
+    setInterval(() => { if (!document.getElementById("modal-mask")) loadList(); }, 60000);
+  }
 }
 
 async function getClassPool(force = false) {
@@ -51,13 +53,14 @@ function classTags(r) {
 async function loadList() {
   const kw = document.getElementById("kw").value;
   usersCache = await api("/api/users" + (kw ? "?kw=" + encodeURIComponent(kw) : ""));
+  const showOnline = currentUser && currentUser.username === "admin";
   const cols = [
     { title: "账号", key: "username" },
     { title: "姓名", key: "name" },
     { title: "角色", render: r => `<span class="badge badge-${r.role === "teacher" ? "blue" : "green"}">${ROLE_NAME[r.role] || r.role}</span>` },
-    { title: "在线状态", render: r => r.online
+    ...(showOnline ? [{ title: "在线状态", render: r => r.online
         ? '<span class="badge badge-green">● 在线</span>'
-        : '<span class="badge badge-red">● 离线</span>' },
+        : '<span class="badge badge-red">● 离线</span>' }] : []),
     { title: "联系电话", render: r => esc(r.phone || "-") },
     { title: "任教班级", render: classTags },
     { title: "创建时间", key: "created_at" },

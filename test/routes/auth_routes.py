@@ -115,10 +115,13 @@ def list_users():
         q = q.filter(db.or_(User.username.contains(kw), User.name.contains(kw)))
     users = q.order_by(User.id).all()
     now = datetime.now()
+    # 在线状态仅内置账号 admin 可见
+    show_online = g.current_user.username == "admin"
     data = []
     for u in users:
         item = u.to_dict()
-        item["online"] = bool(u.last_active_at and (now - u.last_active_at) <= ONLINE_WINDOW)
+        if show_online:
+            item["online"] = bool(u.last_active_at and (now - u.last_active_at) <= ONLINE_WINDOW)
         data.append(item)
     return jsonify({"code": 0, "data": data})
 

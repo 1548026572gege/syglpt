@@ -20,7 +20,7 @@ $PY --version
 echo "==> [2/7] 获取代码"
 if [ -d "$APP_DIR/.git" ]; then
   cd "$APP_DIR"
-  git fetch origin main
+  git fetch origin
   git reset --hard origin/main
 else
   if [ -e "$APP_DIR" ]; then
